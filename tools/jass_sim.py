@@ -457,6 +457,16 @@ class ThreadDied(Exception):
 
 OP_LIMIT = 300000
 
+# Interface objects that do not work when created or shown during map
+# initialization (inside main()). A dialog created there shows up without its
+# buttons, and in single player a shown dialog pauses the game until a button
+# is clicked -- so the game freezes on start.
+NOT_DURING_INIT = {
+    'DialogCreate', 'DialogAddButton', 'DialogAddQuitButton', 'DialogDisplay',
+    'CreateTimerDialog', 'TimerDialogDisplay', 'CreateMultiboard', 'MultiboardDisplay',
+    'CreateLeaderboard', 'LeaderboardDisplay',
+}
+
 
 class Interp:
     def __init__(self, prog, world):
@@ -537,6 +547,9 @@ class Interp:
                 self.report('function %s fell off the end without returning' % name)
             return None
         if name in self.p.natives:
+            if self.w.in_init and name in NOT_DURING_INIT:
+                self.errors.append('[map init %s] %s called during map initialization; it will not work '
+                                   'in game (in %s)' % (self.thread_name, name, ' > '.join(self.stack[-4:])))
             fn = getattr(self.w, 'n_' + name, None)
             if fn is not None:
                 return fn(*args)
@@ -808,6 +821,7 @@ class World:
         self.texttags = 0
         self.stock = {}
         self.disabled = set()
+        self.in_init = False
 
     # helpers ------------------------------------------------------------
 
@@ -1418,7 +1432,9 @@ def boot(paths, users, seed):
     vm = Interp(prog, world)
     vm.init_globals()
     vm.run('config')
+    world.in_init = True
     vm.run('main')
+    world.in_init = False
     return world, vm
 
 

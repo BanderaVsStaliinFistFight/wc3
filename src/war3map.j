@@ -327,6 +327,11 @@ function CreateBoard takes nothing returns nothing
     local integer row = 1
     local integer col
     local multiboarditem mbi
+    if not citadelDead then
+        set raidDialog = CreateTimerDialog(raidTimer)
+        call TimerDialogSetTitle(raidDialog, "Scourge raid")
+        call TimerDialogDisplay(raidDialog, true)
+    endif
     set board = CreateMultiboard()
     call MultiboardSetRowCount(board, playerCount + 2)
     call MultiboardSetColumnCount(board, 4)
@@ -999,7 +1004,9 @@ function GiveHero takes integer i, integer choice returns nothing
     call UnitAddItemById(hero[i], 'stwp')
     call SelectUnitForPlayerSingle(hero[i], userPlayer[i])
     call PanCameraToTimedForPlayer(userPlayer[i], x, y, 0.5)
-    call DialogDisplay(userPlayer[i], heroDialog, false)
+    if heroDialog != null then
+        call DialogDisplay(userPlayer[i], heroDialog, false)
+    endif
     call MsgAll(ColoredName(i) + " rides out as the |cffffcc00" + heroLabel[choice] + "|r.")
     call UpdateBoard()
 endfunction
@@ -1028,31 +1035,7 @@ function OnHeroButton takes nothing returns nothing
     set b = null
 endfunction
 
-function ShowHeroDialog takes nothing returns nothing
-    local integer i = 0
-    loop
-        exitwhen i >= USERS
-        if playing[i] and hero[i] == null then
-            call DialogDisplay(userPlayer[i], heroDialog, true)
-        endif
-        set i = i + 1
-    endloop
-endfunction
-
-function ForceHeroPick takes nothing returns nothing
-    local integer i = 0
-    loop
-        exitwhen i >= USERS
-        if playing[i] and hero[i] == null then
-            call GiveHero(i, GetRandomInt(0, HERO_CHOICES - 1))
-        endif
-        set i = i + 1
-    endloop
-endfunction
-
-function CreateHeroDialog takes nothing returns nothing
-    local trigger t = CreateTrigger()
-    local integer c = 0
+function InitHeroChoices takes nothing returns nothing
     set heroType[0] = 'Hpal'
     set heroLabel[0] = "Paladin"
     set heroType[1] = 'Hamg'
@@ -1071,6 +1054,14 @@ function CreateHeroDialog takes nothing returns nothing
     set heroLabel[7] = "Priestess of the Moon"
     set heroType[8] = 'Npbm'
     set heroLabel[8] = "Pandaren Brewmaster"
+endfunction
+
+// Dialogs (and their buttons) do not work if they are created during map
+// initialization: in single player the game then pauses on an empty dialog
+// and never resumes. This runs from a timer once the game has started.
+function CreateHeroDialog takes nothing returns nothing
+    local trigger t = CreateTrigger()
+    local integer c = 0
     set heroDialog = DialogCreate()
     call DialogSetMessage(heroDialog, "Choose your hero")
     loop
@@ -1082,6 +1073,31 @@ function CreateHeroDialog takes nothing returns nothing
     call TriggerRegisterDialogEvent(t, heroDialog)
     call TriggerAddAction(t, function OnHeroButton)
     set t = null
+endfunction
+
+function ShowHeroDialog takes nothing returns nothing
+    local integer i = 0
+    if heroDialog == null then
+        call CreateHeroDialog()
+    endif
+    loop
+        exitwhen i >= USERS
+        if playing[i] and hero[i] == null then
+            call DialogDisplay(userPlayer[i], heroDialog, true)
+        endif
+        set i = i + 1
+    endloop
+endfunction
+
+function ForceHeroPick takes nothing returns nothing
+    local integer i = 0
+    loop
+        exitwhen i >= USERS
+        if playing[i] and hero[i] == null then
+            call GiveHero(i, GetRandomInt(0, HERO_CHOICES - 1))
+        endif
+        set i = i + 1
+    endloop
 endfunction
 
 function OnReviveTimer takes nothing returns nothing
@@ -1294,7 +1310,9 @@ function OnUnitDeath takes nothing returns nothing
             set citadelDead = true
             call QuestItemSetCompleted(questCitadelItem, true)
             call PauseTimer(raidTimer)
-            call TimerDialogDisplay(raidDialog, false)
+            if raidDialog != null then
+                call TimerDialogDisplay(raidDialog, false)
+            endif
             call MsgAll("|cff40ff40The Black Citadel has been destroyed! No more raids will come.|r")
             call CheckVictory()
         endif
@@ -1596,9 +1614,6 @@ function StartGameTimers takes nothing returns nothing
     call TimerStart(CreateTimer(), 1.0, true, function OnSecond)
     set raidTimer = CreateTimer()
     call TimerStart(raidTimer, 360.0, false, function LaunchRaid)
-    set raidDialog = CreateTimerDialog(raidTimer)
-    call TimerDialogSetTitle(raidDialog, "Scourge raid")
-    call TimerDialogDisplay(raidDialog, true)
     call TimerStart(CreateTimer(), 0.5, false, function ShowHeroDialog)
     call TimerStart(CreateTimer(), 1.0, false, function CreateBoard)
     call TimerStart(CreateTimer(), 2.0, false, function Intro1)
@@ -1616,7 +1631,7 @@ function InitGame takes nothing returns nothing
     call ExecuteFunc("SetupScourge")
     call ExecuteFunc("SetupCreeps")
     call CreateQuests()
-    call CreateHeroDialog()
+    call InitHeroChoices()
     call SetupTriggers()
     call StartGameTimers()
 endfunction
