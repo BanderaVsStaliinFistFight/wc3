@@ -10,6 +10,7 @@ import os
 import sys
 
 from mapgen import formats as F
+from mapgen import hero as H
 from mapgen import layout as L
 from mapgen import script as S
 from mapgen.mpq import MpqWriter
@@ -105,6 +106,8 @@ def build(preview=False, out=OUT, quiet=False):
         ('war3map.wct', F.wct('', custom_script, [S.WE_INIT_TRIGGER])),
         ('war3map.j', script.encode('utf-8')),
     ]
+    # the custom hero: model, texture, icons, object data and import list
+    files += sorted(H.files().items())
 
     mpq = MpqWriter()
     for name, data in files:

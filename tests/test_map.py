@@ -23,11 +23,13 @@ sys.path.insert(0, os.path.join(ROOT, 'tools'))
 
 import build  # noqa: E402
 from mapgen import layout as L  # noqa: E402
+from mapgen import dwarf, hero, objects  # noqa: E402
 from mapgen.mpq import MpqReader, MpqWriter  # noqa: E402
 
 MAP_FILES = ['war3map.w3i', 'war3map.w3e', 'war3map.wpm', 'war3map.shd', 'war3map.doo',
              'war3mapUnits.doo', 'war3map.mmp', 'war3mapMap.blp', 'war3map.w3r', 'war3map.w3c',
-             'war3map.w3s', 'war3map.wtg', 'war3map.wct', 'war3map.j']
+             'war3map.w3s', 'war3map.wtg', 'war3map.wct', 'war3map.j', 'war3map.w3u', 'war3map.w3a',
+             'war3map.imp']
 
 
 class Reader:
@@ -200,6 +202,88 @@ class BuiltMap(unittest.TestCase):
         self.assertIn('function InitGame', custom)
         self.assertNotIn('function main', custom)
         self.assertIn('InitTrig_Init', custom)
+
+
+    def test_custom_hero(self):
+        units = objects.read(self.mpq.read('war3map.w3u'), levels=False)
+        abilities = objects.read(self.mpq.read('war3map.w3a'), levels=True)
+        base, mods = units[hero.HERO_ID]
+        self.assertEqual(base, 'Hmkg')
+        self.assertEqual(mods[('unam', 0)], hero.HERO_NAME)
+        self.assertEqual(mods[('umdl', 0)], dwarf.MODEL_PATH)
+        for ability in mods[('uhab', 0)].split(','):
+            self.assertIn(ability, abilities)
+            self.assertIn(('anam', 0), abilities[ability][1])
+        # every imported file is in the archive and listed in war3map.imp
+        imp = self.mpq.read('war3map.imp')
+        version, count = struct.unpack_from('<ii', imp, 0)
+        listed = [p.decode() for p in imp[8:].split(b'\0')[:count]]
+        self.assertEqual(version, 1)
+        for path in listed:
+            self.assertEqual(path[0], chr(objects.IMPORT_CUSTOM_PATH))
+            self.assertTrue(self.mpq.has(path[1:]), path)
+        self.assertEqual(sorted(p[1:] for p in listed),
+                         sorted([dwarf.MODEL_PATH, dwarf.TEXTURE_PATH, dwarf.ICON_PATH, dwarf.DISICON_PATH]))
+        script = self.mpq.read('war3map.j').decode('utf-8')
+        self.assertIn("'%s'" % hero.HERO_ID, script)
+
+    def test_hero_model(self):
+        mdx = self.mpq.read(dwarf.MODEL_PATH)
+        self.assertEqual(mdx[:4], b'MDLX')
+        self.assertEqual(struct.unpack_from('<4sII', mdx, 4), (b'VERS', 4, 800))
+        tex = self.mpq.read(dwarf.TEXTURE_PATH)
+        self.assertEqual(tex[:4], b'BLP1')
+        self.assertEqual(struct.unpack_from('<ii', tex, 12), (dwarf.TEX, dwarf.TEX))
+
+
+class HeroModel(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.model = dwarf.build_model()
+
+    def test_sequences(self):
+        names = [s['name'] for s in self.model['sequences']]
+        for needed in ('Stand - 1', 'Walk', 'Attack - 1', 'Spell', 'Death', 'Decay Flesh', 'Portrait'):
+            self.assertIn(needed, names)
+        end = 0
+        for s in self.model['sequences']:
+            self.assertGreater(s['start'], end)
+            self.assertGreater(s['end'], s['start'])
+            end = s['end']
+
+    def test_geometry(self):
+        bone_count = len(self.model['bones'])
+        triangles = 0
+        for g in self.model['geosets']:
+            n = len(g['vertices'])
+            self.assertEqual(n, len(g['normals']))
+            self.assertEqual(n, len(g['uvs']))
+            self.assertEqual(n, len(g['bones']))
+            for tri in g['triangles']:
+                self.assertTrue(all(0 <= i < n for i in tri))
+            for normal in g['normals']:
+                self.assertAlmostEqual(sum(c * c for c in normal), 1.0, places=3)
+            for bones in g['bones']:
+                self.assertTrue(all(0 <= b < bone_count for b in bones))
+            for u, v in g['uvs']:
+                self.assertTrue(0.0 <= u <= 1.0 and 0.0 <= v <= 1.0)
+            self.assertLessEqual(len(set(g['bones'])), 255)
+            triangles += len(g['triangles'])
+        # a classic unit's polygon budget
+        self.assertLess(triangles, 3000)
+
+    def test_bones_parent_first(self):
+        for i, b in enumerate(self.model['bones']):
+            self.assertLess(b['parent'], i)
+
+    def test_atlas_regions_do_not_overlap(self):
+        cells = set()
+        for name, (x0, y0, x1, y1) in dwarf.REGIONS.items():
+            self.assertTrue(0 <= x0 < x1 <= dwarf.TEX and 0 <= y0 < y1 <= dwarf.TEX, name)
+            for y in range(y0, y1, 8):
+                for x in range(x0, x1, 8):
+                    self.assertNotIn((x, y), cells, name)
+                    cells.add((x, y))
 
 
 class Mpq(unittest.TestCase):

@@ -127,7 +127,7 @@ globals
     string array     raidTargetName
 
     // Heroes ----------------------------------------------------------------
-    constant integer HERO_CHOICES          = 9
+    constant integer HERO_CHOICES          = 10
     integer array    heroType
     string array     heroLabel
     dialog           heroDialog            = null
@@ -1036,24 +1036,27 @@ function OnHeroButton takes nothing returns nothing
 endfunction
 
 function InitHeroChoices takes nothing returns nothing
-    set heroType[0] = 'Hpal'
-    set heroLabel[0] = "Paladin"
-    set heroType[1] = 'Hamg'
-    set heroLabel[1] = "Archmage"
-    set heroType[2] = 'Hmkg'
-    set heroLabel[2] = "Mountain King"
-    set heroType[3] = 'Obla'
-    set heroLabel[3] = "Blademaster"
-    set heroType[4] = 'Ofar'
-    set heroLabel[4] = "Far Seer"
-    set heroType[5] = 'Otch'
-    set heroLabel[5] = "Tauren Chieftain"
-    set heroType[6] = 'Edem'
-    set heroLabel[6] = "Demon Hunter"
-    set heroType[7] = 'Emoo'
-    set heroLabel[7] = "Priestess of the Moon"
-    set heroType[8] = 'Npbm'
-    set heroLabel[8] = "Pandaren Brewmaster"
+    // 'H000' is the map's own hero: see mapgen/hero.py and mapgen/dwarf.py
+    set heroType[0] = 'H000'
+    set heroLabel[0] = "Dark Iron Thane"
+    set heroType[1] = 'Hpal'
+    set heroLabel[1] = "Paladin"
+    set heroType[2] = 'Hamg'
+    set heroLabel[2] = "Archmage"
+    set heroType[3] = 'Hmkg'
+    set heroLabel[3] = "Mountain King"
+    set heroType[4] = 'Obla'
+    set heroLabel[4] = "Blademaster"
+    set heroType[5] = 'Ofar'
+    set heroLabel[5] = "Far Seer"
+    set heroType[6] = 'Otch'
+    set heroLabel[6] = "Tauren Chieftain"
+    set heroType[7] = 'Edem'
+    set heroLabel[7] = "Demon Hunter"
+    set heroType[8] = 'Emoo'
+    set heroLabel[8] = "Priestess of the Moon"
+    set heroType[9] = 'Npbm'
+    set heroLabel[9] = "Pandaren Brewmaster"
 endfunction
 
 // Dialogs (and their buttons) do not work if they are created during map
