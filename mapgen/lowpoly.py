@@ -5,8 +5,6 @@ where two faces meet at a sharp angle)."""
 
 import math
 
-from .mdx import quat_rotate
-
 
 def add(a, b):
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
@@ -37,22 +35,9 @@ def norm(a):
     return (a[0] / n, a[1] / n, a[2] / n) if n > 1e-12 else (0.0, 0.0, 1.0)
 
 
-def lerp(a, b, t):
-    return tuple(x + (y - x) * t for x, y in zip(a, b))
-
-
 def centroid(points):
     k = 1.0 / len(points)
     return (sum(p[0] for p in points) * k, sum(p[1] for p in points) * k, sum(p[2] for p in points) * k)
-
-
-def mirror(p):
-    """Mirror a point across the XZ plane (left <-> right)."""
-    return (p[0], -p[1], p[2])
-
-
-def rotate_about(pivot, q):
-    return lambda p: add(pivot, quat_rotate(q, sub(p, pivot)))
 
 
 def frame(direction, hint=(1.0, 0.0, 0.0)):
@@ -66,29 +51,6 @@ def frame(direction, hint=(1.0, 0.0, 0.0)):
 def section(center, ax, ay, pts):
     """A cross section: 2D points in the plane spanned by ax and ay."""
     return [add(center, add(mul(ax, a), mul(ay, b))) for a, b in pts]
-
-
-def ring(center, angles, radii, ax=(1.0, 0.0, 0.0), ay=(0.0, 1.0, 0.0)):
-    """A cross section symmetric about the ax axis. angles run from 0 (the
-    front, along ax) to 180 (the back) in degrees, with a radius for each.
-    The points run counter-clockwise (seen with ax pointing right and ay up)
-    starting at the back, so the front sits at u = 0.5."""
-    full = [(-a, r) for a, r in zip(reversed(angles[1:-1]), reversed(radii[1:-1]))]
-    full = [(-180.0, radii[-1])] + full + [(0.0, radii[0])] + list(zip(angles[1:-1], radii[1:-1]))
-    pts = []
-    for a, r in full:
-        t = math.radians(a)
-        pts.append((r * math.cos(t), r * math.sin(t)))
-    return section(center, ax, ay, pts)
-
-
-def ellipse(center, ax, ay, ra, rb, count, phase=0.0):
-    """count points round an ellipse, starting at the back (-ax), counter-clockwise."""
-    pts = []
-    for i in range(count):
-        t = math.pi + phase + 2 * math.pi * i / count
-        pts.append((ra * math.cos(t), rb * math.sin(t)))
-    return section(center, ax, ay, pts)
 
 
 class Builder:
@@ -208,23 +170,3 @@ class Builder:
             for j in range(n):
                 faces.append([c, i * cols + j, i * cols + (j + 1) % n])
         self.mesh(geo, region, pts, uvs, bl, faces, smooth=smooth, outward=outward)
-
-    def sheet(self, geo, region, rows, bones, smooth=50.0, outward=None, two_sided=False, back_region=None,
-              thickness=0.0):
-        """An open grid of points rows[i][j] (u along j, v along i)."""
-        m, n = len(rows), len(rows[0])
-        if not isinstance(bones, list):
-            bones = [bones] * m
-        for side in ((1,) if not two_sided else (1, -1)):
-            pts, uvs, bl = [], [], []
-            for i, row in enumerate(rows):
-                for j, p in enumerate(row):
-                    if side < 0 and thickness:
-                        p = sub(p, mul(norm(outward), thickness))
-                    pts.append(p)
-                    uvs.append((j / (n - 1), i / (m - 1)))
-                    bl.append(bones[i])
-            faces = [[i * n + j, i * n + j + 1, (i + 1) * n + j + 1, (i + 1) * n + j]
-                     for i in range(m - 1) for j in range(n - 1)]
-            self.mesh(geo, region if side > 0 else (back_region or region), pts, uvs, bl, faces, smooth=smooth,
-                      outward=outward if side > 0 else mul(outward, -1.0))

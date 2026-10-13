@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(ROOT, 'tools'))
 
 import build  # noqa: E402
 from mapgen import layout as L  # noqa: E402
-from mapgen import dwarf, hero, objects  # noqa: E402
+from mapgen import dwarf, hero, mdxedit, objects  # noqa: E402
 from mapgen.mpq import MpqReader, MpqWriter  # noqa: E402
 
 MAP_FILES = ['war3map.w3i', 'war3map.w3e', 'war3map.wpm', 'war3map.shd', 'war3map.doo',
@@ -223,14 +223,17 @@ class BuiltMap(unittest.TestCase):
             self.assertEqual(path[0], chr(objects.IMPORT_CUSTOM_PATH))
             self.assertTrue(self.mpq.has(path[1:]), path)
         self.assertEqual(sorted(p[1:] for p in listed),
-                         sorted([dwarf.MODEL_PATH, dwarf.TEXTURE_PATH, dwarf.ICON_PATH, dwarf.DISICON_PATH]))
+                         sorted([dwarf.MODEL_PATH, dwarf.PORTRAIT_PATH, dwarf.TEXTURE_PATH]))
+        self.assertEqual(mods[('uico', 0)], dwarf.ICON_PATH)
         script = self.mpq.read('war3map.j').decode('utf-8')
         self.assertIn("'%s'" % hero.HERO_ID, script)
 
     def test_hero_model(self):
-        mdx = self.mpq.read(dwarf.MODEL_PATH)
-        self.assertEqual(mdx[:4], b'MDLX')
-        self.assertEqual(struct.unpack_from('<4sII', mdx, 4), (b'VERS', 4, 800))
+        for path in (dwarf.MODEL_PATH, dwarf.PORTRAIT_PATH):
+            mdx = self.mpq.read(path)
+            self.assertEqual(mdx[:4], b'MDLX')
+            self.assertEqual(struct.unpack_from('<4sII', mdx, 4), (b'VERS', 4, 800))
+            mdxedit.Model(mdx)
         tex = self.mpq.read(dwarf.TEXTURE_PATH)
         self.assertEqual(tex[:4], b'BLP1')
         self.assertEqual(struct.unpack_from('<ii', tex, 12), (dwarf.TEX, dwarf.TEX))
@@ -239,42 +242,59 @@ class BuiltMap(unittest.TestCase):
 class HeroModel(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.model = dwarf.build_model()
+        cls.model, cls.portrait = dwarf.build_models()
 
-    def test_sequences(self):
-        names = [s['name'] for s in self.model['sequences']]
-        for needed in ('Stand - 1', 'Walk', 'Attack - 1', 'Spell', 'Death', 'Decay Flesh', 'Portrait'):
-            self.assertIn(needed, names)
-        end = 0
-        for s in self.model['sequences']:
-            self.assertGreater(s['start'], end)
-            self.assertGreater(s['end'], s['start'])
-            end = s['end']
+    def test_reference_models_round_trip(self):
+        for member in ('King/King.mdx', 'King/King_Portrait.mdx'):
+            data = dwarf.read_reference(member)
+            self.assertEqual(mdxedit.Model(data).write(), data)
 
-    def test_geometry(self):
-        bone_count = len(self.model['bones'])
-        triangles = 0
-        for g in self.model['geosets']:
-            n = len(g['vertices'])
-            self.assertEqual(n, len(g['normals']))
-            self.assertEqual(n, len(g['uvs']))
-            self.assertEqual(n, len(g['bones']))
-            for tri in g['triangles']:
-                self.assertTrue(all(0 <= i < n for i in tri))
-            for normal in g['normals']:
-                self.assertAlmostEqual(sum(c * c for c in normal), 1.0, places=3)
-            for bones in g['bones']:
-                self.assertTrue(all(0 <= b < bone_count for b in bones))
-            for u, v in g['uvs']:
-                self.assertTrue(0.0 <= u <= 1.0 and 0.0 <= v <= 1.0)
-            self.assertLessEqual(len(set(g['bones'])), 255)
-            triangles += len(g['triangles'])
-        # the polygon budget of the classic hero models
-        self.assertLess(triangles, 1600)
+    def test_well_formed(self):
+        for model in (self.model, self.portrait):
+            data = model.write()
+            again = mdxedit.Model(data)
+            self.assertEqual(again.write(), data)
+            ids = {e.node.object_id for _, e in model.all_nodes()}
+            self.assertEqual(sorted(ids), list(range(len(model.pivots))))
+            for g in model.geosets:
+                n = len(g.vertices)
+                self.assertGreater(n, 0)
+                self.assertTrue(n == len(g.normals) == len(g.uvs) == len(g.vertex_groups))
+                self.assertTrue(all(0 <= i < n for f in g.faces for i in f))
+                self.assertTrue(all(0 <= k < len(g.groups) for k in g.vertex_groups))
+                self.assertTrue(all(b in ids for grp in g.groups for b in grp))
+                self.assertLess(g.material, len(model.materials))
+            for a in model.geoset_animations:
+                self.assertLess(a.geoset, len(model.geosets))
+            self.assertIn(dwarf.TEXTURE_PATH, [t.path for t in model.textures])
 
-    def test_bones_parent_first(self):
-        for i, b in enumerate(self.model['bones']):
-            self.assertLess(b['parent'], i)
+    def test_dwarf_changes(self):
+        king = mdxedit.Model(dwarf.read_reference('King/King.mdx'))
+        top = max(v[2] for g in self.model.geosets for v in g.vertices)
+        self.assertLess(top, max(v[2] for g in king.geosets for v in g.vertices) - 15)
+        hidden = {a.geoset for a in self.model.geoset_animations if a.alpha == 0.0}
+        visible = [g for i, g in enumerate(self.model.geosets) if i not in hidden]
+        self.assertGreater(min(v[2] for g in visible for v in g.vertices), -1.0)
+        # the crown is gone, the sword's glow hidden, the sword now a hammer
+        head = self.model.node('Bone_Head').node.object_id
+        armour = self.model.geosets[dwarf.ARMOUR]
+        self.assertFalse(any(armour.bones_of(i) == [head] for i in range(len(armour.vertices))))
+        glow = [a for a in self.model.geoset_animations if a.geoset == dwarf.SWORD_GLOW]
+        self.assertEqual(glow[0].alpha, 0.0)
+        hammer = self.model.geosets[dwarf.SWORD]
+        layers = mdxedit.layer_textures(self.model.materials[hammer.material])
+        self.assertEqual(self.model.textures[layers[0]].path, dwarf.TEXTURE_PATH)
+        self.assertEqual(self.model.sequence('Walk').move_speed, dwarf.WALK_SPEED)
+        # the beard grew: the hair geosets reach well below the King's chin
+        self.assertLess(min(v[2] for v in self.model.geosets[9].vertices), 100.7 - dwarf.DROP - 10)
+
+    def test_portrait(self):
+        names = [s.name for s in self.portrait.sequences]
+        self.assertIn('Portrait - 1', names)
+        self.assertIn('Portrait Talk - 1', names)
+        self.assertEqual(len(self.portrait.cameras), 1)
+        animated = {a.geoset for a in self.portrait.geoset_animations}
+        self.assertEqual(animated, set(range(len(self.portrait.geosets))))
 
     def test_atlas_regions_do_not_overlap(self):
         cells = set()

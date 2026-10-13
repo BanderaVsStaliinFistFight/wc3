@@ -1,6 +1,6 @@
 """The Dark Iron Thane: a custom hero built on the Mountain King, with his
-own model, icon and four fire-themed abilities (the Mountain King's, renamed
-and re-iconed, so their balance stays the game's own)."""
+own model and four fire-themed abilities (the Mountain King's, renamed and
+re-iconed, so their balance stays the game's own)."""
 
 from . import dwarf
 from . import objects as O
@@ -93,9 +93,9 @@ UNITS = [
 
 
 def files():
-    """The archive files for the hero: model, texture, icons, object data
+    """The archive files for the hero: model, portrait, texture, object data
     and the import list."""
-    assets, _, _, _ = dwarf.build()
+    assets = dwarf.build()
     out = dict(assets)
     out['war3map.w3u'] = O.w3u(UNITS)
     out['war3map.w3a'] = O.w3a(ABILITIES)

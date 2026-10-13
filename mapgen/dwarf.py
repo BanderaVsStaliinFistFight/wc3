@@ -1,101 +1,68 @@
-"""The Dark Iron Thane: a custom hero model built the way the classic
-Warcraft III units are -- about a thousand polygons of angular planes (soft
-where a surface curves gently, creased where it turns sharply) on a full
-skeleton, a small hand-painted texture, and team colour showing through the
-texture's alpha.
+"""The Dark Iron Thane: the hero's model, assembled from the reference models
+in this repository the way Hive Workshop modellers make theirs.
 
-The model is built in its standing pose; the animations rotate the bones
-away from it. Model space: +X is forward, +Y is the dwarf's left, +Z is up,
-one unit per world unit. The dwarf stands about 108 units tall, topknot
-included.
+The base is "King" by Tranquil (King.zip): its body, arms, pauldrons, cape,
+bearded head, skeleton and animations, all textured with the game's own
+skins. On top of that:
+- dwarf proportions: the legs and cape shortened, the body widened
+- the crown taken off and the beard grown down over the chest
+- everything tinted through geoset colours: dark iron armour, slate blue
+  skin, a near black beard and moustache
+- glowing eyes, a topknot, and a warhammer in place of the sword, painted on
+  a small texture of their own
+The King's portrait model gets the same head.
 """
 
 import math
+import os
+import zipfile
+from collections import defaultdict
 
-from . import bake, image, mdx
-from .lowpoly import Builder, add, cross, dot, ellipse, frame, lerp, mirror, mul, norm, ring, section, sub
-from .mdx import quat_euler
+from . import image, mdxedit
+from .lowpoly import Builder, add, cross, dot, frame, mul, norm, section, sub
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+KING_ZIP = os.path.join(ROOT, 'King.zip')
 
 MODEL_PATH = 'war3mapImported\\DarkIronThane.mdx'
+PORTRAIT_PATH = 'war3mapImported\\DarkIronThane_Portrait.mdx'   # the game finds it by this name
 TEXTURE_PATH = 'war3mapImported\\DarkIronThane.blp'
-ICON_PATH = 'war3mapImported\\BTNDarkIronThane.blp'
-DISICON_PATH = 'ReplaceableTextures\\CommandButtonsDisabled\\DISBTNDarkIronThane.blp'
+ICON_PATH = 'ReplaceableTextures\\CommandButtons\\BTNHeroMountainKing.blp'
 
-TEX = 256
+# the King's geosets
+BODY, ARMS, SWORD_GLOW, HERO_GLOW, SWORD, HEAD, ARMOUR, CAPE, TASSETS = range(9)
+KING_TEXTURES = {BODY: 'Textures\\Arthas.blp', SWORD: 'UI\\Glues\\MainMenu\\MainMenu3d\\SwordBladeGoldTrim.blp',
+                 HEAD: 'Units\\Human\\HeroPaladinBoss2\\HeropaladinBoss2.blp'}
+# the portrait's geosets
+P_ARMOUR, P_HEAD = 0, 1
 
-# texture atlas regions in pixels: (x0, y0, x1, y1)
+# colours multiplied over the game's skins (red, green, blue)
+ARMOUR_TINT = (0.48, 0.42, 0.44)       # dark iron
+SKIN_TINT = (0.48, 0.62, 0.98)         # slate blue
+HAIR_TINT = (0.22, 0.22, 0.30)         # near black
+CAPE_TINT = (0.85, 0.85, 0.85)
+
+# dwarf proportions: legs (below the King's hips) shortened, everything widened
+HIP_Z = 68.1
+LEG_SCALE = 0.62
+DROP = HIP_Z * (1.0 - LEG_SCALE)
+WIDEN = (1.08, 1.12)
+WALK_SPEED = 170.0
+
+# the beard grows down from the line of the mouth
+BEARD_TOP = 111.2
+BEARD_BONES = {'Portrait__Beard01', 'Portrait__MoustachL01', 'Portrait__MoustachR01', 'Portrait__MoustacheM01'}
+
+TEX = 128
 REGIONS = {
-    'head': (0, 0, 128, 64),
-    'beard': (128, 0, 192, 64),
-    'torso': (192, 0, 256, 64),
-    'pauldron': (0, 64, 64, 128),
-    'shield': (64, 64, 128, 128),
-    'arm': (128, 64, 160, 96),
-    'hand': (128, 96, 160, 128),
-    'gauntlet': (160, 64, 192, 96),
-    'thigh': (160, 96, 192, 128),
-    'boot': (192, 64, 224, 96),
-    'foot': (192, 96, 224, 128),
-    'hammer': (224, 64, 256, 96),
-    'tasset': (224, 96, 256, 128),
-    'belt': (0, 128, 64, 144),
-    'fur': (0, 144, 64, 160),
-    'hips': (0, 160, 64, 192),
-    'cloth': (64, 128, 96, 160),
-    'backcloth': (64, 160, 96, 192),
-    'buckle': (96, 128, 128, 144),
-    'knee': (96, 144, 112, 160),
-    'thumb': (112, 144, 128, 160),
-    'eye': (96, 160, 112, 176),
-    'gem': (112, 160, 128, 176),
-    'spike': (96, 176, 128, 192),
-    'handle': (128, 128, 144, 192),
-    'grip': (144, 128, 160, 160),
-    'gold': (144, 160, 160, 192),
-    'iron': (160, 128, 224, 160),
-    'moustache': (0, 192, 32, 224),
-    'topknot': (32, 192, 48, 224),
-    'brow': (48, 192, 64, 208),
-    'ear': (48, 208, 64, 224),
+    'hammer': (0, 0, 64, 64),
+    'gold': (64, 0, 96, 32),
+    'spike': (96, 0, 128, 32),
+    'handle': (64, 32, 80, 96),
+    'grip': (80, 32, 96, 96),
+    'hair': (96, 32, 128, 96),
+    'eye': (0, 64, 32, 96),
 }
-
-# regions shared by unrelated parts get no baked shading
-SHARED = {'gold', 'iron', 'spike', 'eye', 'gem', 'handle', 'grip'}
-
-GEO_MAIN, GEO_GLOW = 0, 1
-
-BONES = [
-    # name, parent, pivot -- the layout of the classic hero skeletons
-    ('Root', -1, (0.0, 0.0, 42.0)),
-    ('Pelvis', 0, (0.0, 0.0, 42.0)),
-    ('Chest', 1, (0.0, 0.0, 50.0)),
-    ('Head', 2, (3.0, 0.0, 84.0)),
-    ('ShoulderL', 2, (0.0, 16.0, 80.0)),
-    ('ArmL', 4, (-1.0, 29.0, 80.0)),
-    ('ForeL', 5, (-4.0, 37.0, 62.0)),
-    ('HandL', 6, (0.0, 42.0, 47.0)),
-    ('ShoulderR', 2, (0.0, -16.0, 80.0)),
-    ('ArmR', 8, (-1.0, -29.0, 80.0)),
-    ('ForeR', 9, (-4.0, -37.0, 62.0)),
-    ('HandR', 10, (0.0, -42.0, 47.0)),
-    ('Hammer', 11, (2.2, -43.4, 41.0)),
-    ('ThighL', 1, (0.0, 10.0, 42.0)),
-    ('ShinL', 13, (4.0, 13.0, 23.0)),
-    ('FootL', 14, (0.8, 15.2, 7.5)),
-    ('ThighR', 1, (0.0, -10.0, 42.0)),
-    ('ShinR', 16, (4.0, -13.0, 23.0)),
-    ('FootR', 17, (0.8, -15.2, 7.5)),
-]
-B = {name: i for i, (name, _, _) in enumerate(BONES)}
-
-FIST = (2.2, 43.4, 41.0)                        # left fist; the right one mirrors it
-HAMMER_DIR = norm((0.52, -0.12, -0.85))         # from the right fist to the hammer head
-HAMMER_HEAD = 27.0
-SHIELD_C = (8.0, 54.0, 50.0)
-SHIELD_N = norm((0.45, 0.89, 0.0))
-SHIELD_R = 19.0
-
-ICON_CAMERA = {'eye': (70.0, -32.0, 100.0), 'target': (8.0, -3.0, 89.0), 'fov': 0.62}
 
 
 def atlas(region, u, v):
@@ -105,363 +72,425 @@ def atlas(region, u, v):
     return ((x0 + 1.0 + u * (x1 - x0 - 2)) / TEX, (y0 + 1.0 + v * (y1 - y0 - 2)) / TEX)
 
 
-def _bones(*names):
-    ids = sorted({B[n] for n in names})
-    return ids[0] if len(ids) == 1 else tuple(ids)
-
-
-def _side(name, side):
-    """'ArmL' -> 'ArmR' for the right side."""
-    return name if side > 0 or not name.endswith('L') else name[:-1] + 'R'
+def read_reference(member):
+    with zipfile.ZipFile(KING_ZIP) as z:
+        return z.read(member)
 
 
 # ---------------------------------------------------------------------------
-# the head
+# geometry helpers
 # ---------------------------------------------------------------------------
 
-HEAD_ANGLES = [0, 15, 40, 80, 130, 180]
-HEAD = [
-    # height, centre x, radius at each angle (front, nose side, eye, cheek, back of the head)
-    (80.0, 4.0, [5.5, 5.6, 6.2, 6.6, 6.0, 5.5]),
-    (84.0, 4.5, [10.4, 10.3, 10.2, 9.9, 8.4, 7.8]),      # mouth, under the moustache
-    (87.5, 4.5, [14.2, 11.6, 11.2, 10.6, 9.2, 8.8]),     # nose tip, cheeks
-    (91.0, 4.5, [12.4, 10.6, 9.8, 10.8, 9.6, 9.2]),      # bridge, eye sockets, cheekbones
-    (94.0, 4.5, [11.2, 11.6, 11.6, 10.8, 9.8, 9.4]),     # heavy brow
-    (97.5, 4.0, [10.6, 10.6, 10.5, 10.2, 9.4, 9.2]),     # forehead
-    (101.0, 3.5, [8.4, 8.4, 8.3, 8.1, 7.7, 7.6]),        # crown
-    (104.6, 3.2, [0.0] * 6),                             # top
-]
-Z_MOUTH, Z_NOSE, Z_EYE, Z_BROW, Z_FOREHEAD, Z_CROWN = (HEAD[i][0] for i in range(1, 7))
-HEAD_C = (4.5, 0.0, 92.5)
-HEAD_POINT_ANGLES = [-180, -130, -80, -40, -15, 0, 15, 40, 80, 130]
+def extent(points):
+    if not points:
+        return (0.0,) * 7
+    lo = [min(p[k] for p in points) for k in range(3)]
+    hi = [max(p[k] for p in points) for k in range(3)]
+    radius = math.sqrt(sum((hi[k] - lo[k]) ** 2 for k in range(3))) / 2
+    return (radius, *lo, *hi)
 
 
-def head_u(angle):
-    """Texture u for an angle round the head: the face gets the most room."""
-    return 0.5 + 0.5 * math.copysign((abs(angle) / 180.0) ** 0.7, angle)
+def principal_axes(points):
+    """The two main directions of a cloud of points (power iteration)."""
+    c = [sum(p[k] for p in points) / len(points) for k in range(3)]
+    cov = [[sum((p[i] - c[i]) * (p[j] - c[j]) for p in points) for j in range(3)] for i in range(3)]
+
+    def dominant(m, start):
+        v = start
+        for _ in range(100):
+            v = norm(tuple(sum(m[i][j] * v[j] for j in range(3)) for i in range(3)))
+        return v
+    a = dominant(cov, (1.0, 0.2, 0.1))
+    lam = sum(a[i] * sum(cov[i][j] * a[j] for j in range(3)) for i in range(3))
+    deflated = [[cov[i][j] - lam * a[i] * a[j] for j in range(3)] for i in range(3)]
+    b = dominant(deflated, (0.1, 0.2, 1.0))
+    return tuple(c), a, b
 
 
-def head_angle(u):
-    x = (u - 0.5) / 0.5
-    return math.copysign(180.0 * abs(x) ** (1 / 0.7), x)
+def ray_hit(geoset, origin, direction):
+    """The nearest point where a ray leaves through the mesh (or None)."""
+    best = None
+    v = geoset.vertices
+    for ia, ib, ic in geoset.faces:
+        a, b, c = v[ia], v[ib], v[ic]
+        e1, e2 = sub(b, a), sub(c, a)
+        p = cross(direction, e2)
+        det = dot(e1, p)
+        if abs(det) < 1e-9:
+            continue
+        t0 = sub(origin, a)
+        u = dot(t0, p) / det
+        q = cross(t0, e1)
+        w = dot(direction, q) / det
+        t = dot(e2, q) / det
+        if u >= 0 and w >= 0 and u + w <= 1 and t > 0 and (best is None or t < best):
+            best = t
+    return add(origin, mul(direction, best)) if best is not None else None
 
 
-def _head_level_point(level, angle):
-    z, cx, radii = HEAD[level]
-    a = abs(angle)
-    k = 0
-    while k < len(HEAD_ANGLES) - 2 and a > HEAD_ANGLES[k + 1]:
-        k += 1
-    t = (a - HEAD_ANGLES[k]) / (HEAD_ANGLES[k + 1] - HEAD_ANGLES[k])
-
-    def polar(ang, r):
-        return (cx + r * math.cos(math.radians(ang)), r * math.sin(math.radians(ang)), z)
-    p = lerp(polar(HEAD_ANGLES[k], radii[k]), polar(HEAD_ANGLES[k + 1], radii[k + 1]), t)
-    return (p[0], p[1] if angle >= 0 else -p[1], p[2])
-
-
-def head_surface(angle, z, out=0.0):
-    """A point on the faceted head at an angle and height, pushed out along
-    the horizontal normal."""
-    i = 0
-    while i < len(HEAD) - 2 and z > HEAD[i + 1][0]:
-        i += 1
-    t = (z - HEAD[i][0]) / (HEAD[i + 1][0] - HEAD[i][0])
-    p = lerp(_head_level_point(i, angle), _head_level_point(i + 1, angle), t)
-    o = norm((p[0] - HEAD_C[0], p[1], 0.0))
-    return add(p, mul(o, out))
+def to_geoset(built, material):
+    """A geoset from lowpoly.Builder data."""
+    g = mdxedit.Geoset()
+    g.vertices, g.normals, g.uvs = list(built['vertices']), list(built['normals']), list(built['uvs'])
+    g.faces = list(built['triangles'])
+    index = {}
+    for b in built['bones']:
+        key = tuple(b)
+        if key not in index:
+            index[key] = len(g.groups)
+            g.groups.append(list(key))
+        g.vertex_groups.append(index[key])
+    g.material = material
+    return g
 
 
-BEARD = [
-    # height, front x, back x, half width
-    (87.5, 12.6, 2.0, 10.4),
-    (83.5, 16.2, 3.4, 11.6),
-    (78.5, 19.4, 7.5, 12.2),
-    (72.0, 20.8, 11.0, 11.4),
-    (65.5, 20.6, 13.5, 8.4),
-    (60.5, 19.6, 14.6, 4.6),
-]
-BEARD_TIP = (18.4, 0.0, 56.5)
+def compact(g):
+    """Drops vertices no face uses."""
+    used = sorted({i for f in g.faces for i in f})
+    remap = {old: new for new, old in enumerate(used)}
+    g.vertices = [g.vertices[i] for i in used]
+    g.normals = [g.normals[i] for i in used]
+    g.uvs = [g.uvs[i] for i in used]
+    g.vertex_groups = [g.vertex_groups[i] for i in used]
+    g.extra_uv_sets = [[s[i] for i in used] for s in g.extra_uv_sets]
+    g.faces = [tuple(remap[i] for i in f) for f in g.faces]
 
 
-def _beard_half(xf, xb, w):
-    """The left half of a beard section, front to side."""
-    return [(xf, 0.0), (xf - 2.6, 0.8 * w), ((xf + xb) / 2 - 1.0, w), (xb + 1.0, 0.7 * w)]
+def split(g, keep):
+    """Moves the faces whose corners all pass keep(vertex) into a new geoset
+    (same material and bones)."""
+    moved = [f for f in g.faces if all(keep(i) for i in f)]
+    rest = [f for f in g.faces if not all(keep(i) for i in f)]
+    new = mdxedit.Geoset()
+    new.vertices, new.normals, new.uvs = list(g.vertices), list(g.normals), list(g.uvs)
+    new.vertex_groups, new.groups = list(g.vertex_groups), [list(x) for x in g.groups]
+    new.material, new.faces = g.material, moved
+    g.faces = rest
+    compact(g)
+    compact(new)
+    return new
 
 
-def beard_section(z, xf, xb, w):
-    half = _beard_half(xf, xb, w)
-    pts = [(xb, 0.0)] + [(x, -y) for x, y in reversed(half[1:])] + half[:-1] + [half[-1]]
-    return [(x, y, z) for x, y in pts]
+def drop_faces(g, gone):
+    g.faces = [f for f in g.faces if not all(gone(i) for i in f)]
+    compact(g)
 
 
-def beard_front(y, z):
-    """x of the front of the beard at (y, z)."""
-    i = 0
-    while i < len(BEARD) - 2 and z < BEARD[i + 1][0]:
-        i += 1
-    t = (BEARD[i][0] - z) / (BEARD[i][0] - BEARD[i + 1][0])
-    _, xf, xb, w = (a + (b - a) * t for a, b in zip(BEARD[i], BEARD[i + 1]))
-    half = _beard_half(xf, xb, w)[:3]
-    y = abs(y)
-    for (x0, y0), (x1, y1) in zip(half, half[1:]):
-        if y <= y1:
-            return x0 + (x1 - x0) * (y - y0) / (y1 - y0)
-    return half[-1][0]
+class HeadMap:
+    """Ties the King's head to the portrait's copy of it (the same mesh,
+    scaled and moved, with vertices in another order): the portrait's
+    facial bones say which vertices are beard, and where the eyes are."""
 
+    def __init__(self, main, portrait, portrait_model):
+        names = {e.node.object_id: e.node.name for _, e in portrait_model.all_nodes()}
+        by_uv = defaultdict(list)
+        for j, uv in enumerate(portrait.uvs):
+            by_uv[(round(uv[0], 4), round(uv[1], 4))].append(j)
+        unique = [(i, by_uv[key][0]) for i, uv in enumerate(main.uvs)
+                  for key in [(round(uv[0], 4), round(uv[1], 4))] if len(by_uv[key]) == 1]
+        n = len(unique)
+        self.mk = [sum(main.vertices[i][k] for i, _ in unique) / n for k in range(3)]
+        self.mp = [sum(portrait.vertices[j][k] for _, j in unique) / n for k in range(3)]
+        num = sum((main.vertices[i][k] - self.mk[k]) * (portrait.vertices[j][k] - self.mp[k])
+                  for i, j in unique for k in range(3))
+        den = sum((main.vertices[i][k] - self.mk[k]) ** 2 for i, _ in unique for k in range(3))
+        self.scale = num / den
+        self.bones = []
+        for i, uv in enumerate(main.uvs):
+            candidates = by_uv[(round(uv[0], 4), round(uv[1], 4))]
+            target = self.to_portrait(main.vertices[i])
+            j = min(candidates, key=lambda c: sum((portrait.vertices[c][k] - target[k]) ** 2 for k in range(3)))
+            self.bones.append({names[b] for b in portrait.bones_of(j)})
+        self.portrait_names = names
+
+    def to_portrait(self, p):
+        return tuple(self.mp[k] + (p[k] - self.mk[k]) * self.scale for k in range(3))
+
+    def to_main(self, q):
+        return tuple(self.mk[k] + (q[k] - self.mp[k]) / self.scale for k in range(3))
+
+    def is_hair(self, i):
+        return bool(self.bones[i] & BEARD_BONES)
+
+
+def grow_beard(p):
+    """Beard below the mouth grows down (and a little forward and wider)."""
+    x, y, z = p
+    d = BEARD_TOP - z
+    if d <= 0:
+        return p
+    return (x + 0.3 * d, y * (1.0 + 0.03 * d), BEARD_TOP - 2.4 * d)
+
+
+def tint(model, geoset, rgb, alpha=1.0):
+    """A static geoset colour. (Static colours are stored red, green, blue;
+    only animated ones are stored the other way round.)"""
+    for a in model.geoset_animations:
+        if a.geoset == geoset:
+            a.color, a.alpha, a.flags = tuple(rgb), alpha, a.flags | 2
+            return a
+    a = mdxedit.GeosetAnimation(geoset, alpha, tuple(rgb), 2)
+    model.geoset_animations.append(a)
+    return a
+
+
+# ---------------------------------------------------------------------------
+# the added pieces: hammer, topknot, eyes
+# ---------------------------------------------------------------------------
 
 def octagon(ha, hb, c=0.6):
-    """A chamfered rectangle, counter-clockwise from the back (-a)."""
     return [(-ha, -c * hb), (-c * ha, -hb), (c * ha, -hb), (ha, -c * hb), (ha, c * hb), (c * ha, hb),
             (-c * ha, hb), (-ha, c * hb)]
 
 
-def path_sections(path, radii, count, hint=(1.0, 0.0, 0.0), phase=0.0, shape=None):
-    """Elliptical sections along a path of points; radii are (along the
-    hint, across) per point. shape(i, j) can scale single points."""
+def path_sections(path, radii, count, hint=(1.0, 0.0, 0.0), phase=0.0):
     out = []
     for i, (c, (ra, rb)) in enumerate(zip(path, radii)):
         d = sub(path[min(i + 1, len(path) - 1)], path[max(i - 1, 0)])
         ax, ay = frame(d, hint)
-        sec = ellipse(c, ax, ay, ra, rb, count, phase)
-        if shape:
-            sec = [add(c, mul(sub(p, c), shape(i, j))) for j, p in enumerate(sec)]
-        out.append(sec)
+        out.append([add(c, add(mul(ax, ra * math.cos(math.pi + phase + 2 * math.pi * k / count)),
+                               mul(ay, rb * math.sin(math.pi + phase + 2 * math.pi * k / count))))
+                    for k in range(count)])
     return out
 
 
-def zigzag(last):
-    """A ragged lower edge for fur: every other point of the last section pulled in."""
-    return lambda i, j: (0.86 if j % 2 else 1.06) if i == last else 1.0
+def build_hammer(sword_points, bone):
+    """A warhammer along the King's sword: the handle where the blade was,
+    the head square across it, in the plane the blade cuts in."""
+    m = Builder(1, atlas)
+    centre, a, h = principal_axes(sword_points)
+    if a[0] < 0:
+        a = mul(a, -1.0)
+    grip = min(sword_points, key=lambda p: dot(p, a))
+    grip = add(grip, mul(a, 14.0))                  # past the pommel, in the fist
+    s = cross(a, h)
+    head = add(grip, mul(a, 40.0))
 
-
-# ---------------------------------------------------------------------------
-# the mesh
-# ---------------------------------------------------------------------------
-
-def build_mesh():
-    """The model, triangle by triangle: rings of a few hand-placed vertices
-    stitched into strips of triangles, and small hand-made pieces."""
-    m = Builder(2, atlas)
-    head = B['Head']
-
-    # -- head: a faceted skull; the face is mostly painted
-    us = [head_u(a) for a in HEAD_POINT_ANGLES]
-    m.loft(GEO_MAIN, 'head', [ring((cx, 0.0, z), HEAD_ANGLES, radii) for z, cx, radii in HEAD], head,
-           us=us, smooth=60)
-    for side in (1, -1):
-        def s(p, side=side):
-            return p if side > 0 else mirror(p)
-        # glowing eyes, slanted in a scowl: two triangles each
-        eye = [head_surface(25, Z_EYE + 0.2, 0.45), head_surface(35, Z_EYE + 1.7, 0.45),
-               head_surface(46, Z_EYE + 1.4, 0.45), head_surface(35, Z_EYE - 0.1, 0.45)]
-        m.mesh(GEO_GLOW, 'eye', [s(p) for p in eye], [(0.0, 0.5), (0.5, 0.0), (1.0, 0.5), (0.5, 1.0)], [head] * 4,
-               [[0, 1, 2], [0, 2, 3]], outward=s((0.8, 0.6, 0.0)))
-        # brows: thick wedges in an angry V
-        brow = [(6, Z_BROW - 1.7, 1.0), (24, Z_BROW + 0.2, 1.3), (50, Z_BROW + 1.0, 0.4)]
-        sections = []
-        for k, (a, z, size) in enumerate(brow):
-            c = head_surface(a, z, 0.8)
-            prev = head_surface(*brow[max(k - 1, 0)][:2], 0.8)
-            nxt = head_surface(*brow[min(k + 1, len(brow) - 1)][:2], 0.8)
-            ax, ay = frame(sub(nxt, prev), norm((c[0] - HEAD_C[0], c[1], 0.0)))
-            if ay[2] < 0:
-                ay = mul(ay, -1.0)
-            sections.append([s(p) for p in section(c, ax, ay, [(1.0 * size, 0.1), (-0.5 * size, 1.0 * size),
-                                                                (-0.5 * size, -0.9 * size)])])
-        m.loft(GEO_MAIN, 'brow', sections, head, caps=('start', 'end'), smooth=40)
-        # ears: four triangles round a point
-        base = [head_surface(86, Z_NOSE + 3.0, -0.4), head_surface(102, Z_NOSE + 3.6, -0.4),
-                head_surface(100, Z_NOSE + 8.8, -0.4), head_surface(86, Z_NOSE + 7.8, -0.4)]
-        tip = add(head_surface(100, Z_NOSE + 7.2, 3.6), (-1.2, 0.0, 0.6))
-        pts = [s(p) for p in base + [tip]]
-        m.mesh(GEO_MAIN, 'ear', pts, [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0), (0.5, 0.5)], [head] * 5,
-               [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], smooth=35)
-        # a long drooping moustache lying on the beard
-        must = [(1.0, Z_MOUTH + 1.3, 1.2, 1.6), (6.4, Z_MOUTH - 1.6, 1.7, 2.6), (9.0, Z_MOUTH - 10.0, 1.6, 2.4),
-                (6.4, Z_MOUTH - 20.6, 0.15, 0.2)]
-        path = [(17.6 if k == 0 else beard_front(y, z) + 0.8 * t, y, z) for k, (y, z, t, _) in enumerate(must)]
-        sections = []
-        for k, (c, (_, _, t, w)) in enumerate(zip(path, must)):
-            ax, ay = frame(sub(path[min(k + 1, len(path) - 1)], path[max(k - 1, 0)]), (1.0, 0.0, 0.0))
-            sections.append([s(p) for p in section(c, ax, ay, [(t, 0.0), (0.0, w), (-0.7 * t, 0.0), (0.0, -w)])])
-        m.loft(GEO_MAIN, 'moustache', sections, head, caps=('start',), smooth=60)
-
-    # -- the beard: a great wedge from the jaw to the chest
-    sections = [beard_section(*b) for b in BEARD] + [[BEARD_TIP] * 8]
-    m.loft(GEO_MAIN, 'beard', sections, head, smooth=60)
-
-    # -- topknot, bound with a gold ring
-    knot = [(2.6, 0.0, 105.1), (0.8, 0.0, 110.4), (-4.0, 0.0, 113.6), (-9.4, 0.0, 111.2), (-12.0, 0.0, 106.0)]
-    radii = [(3.6, 3.2), (3.0, 2.7), (3.0, 2.6), (2.0, 1.8), (0.15, 0.15)]
-    m.loft(GEO_MAIN, 'topknot', path_sections(knot, radii, 4, hint=(0.0, 1.0, 0.0), phase=math.pi / 4), head,
-           smooth=70)
-    m.loft(GEO_MAIN, 'gold', path_sections([(2.4, 0.0, 106.3), (2.0, 0.0, 108.3)], [(4.0, 4.0), (3.7, 3.7)], 6,
-                                           hint=(0.0, 1.0, 0.0)), head, smooth=60)
-
-    # -- torso: a broad barrel chest in a dark iron breastplate
-    angles = [0, 30, 75, 120, 180]
-    torso = [(46.0, 0.5, [14.0, 14.8, 17.2, 14.6, 11.6]),
-             (58.0, 1.5, [16.8, 18.0, 21.0, 16.4, 13.0]),
-             (68.0, 2.0, [17.6, 19.6, 24.0, 18.4, 13.8]),
-             (77.0, 1.5, [14.6, 17.4, 23.6, 17.0, 13.0]),
-             (84.0, 2.0, [7.0, 7.2, 8.0, 7.2, 6.4])]
-    m.loft(GEO_MAIN, 'torso', [ring((cx, 0.0, z), angles, r) for z, cx, r in torso],
-           [_bones('Pelvis', 'Chest')] + [B['Chest']] * 4, smooth=50)
-
-    # -- belt with a big buckle and an ember in it
-    belt = [(41.5, 0.5, [15.0, 15.8, 18.2, 15.4, 12.2]),
-            (45.8, 0.8, [16.0, 16.8, 19.2, 16.2, 13.0]),
-            (50.0, 1.2, [16.8, 17.6, 19.8, 16.6, 13.2])]
-    pelvis = B['Pelvis']
-    m.loft(GEO_MAIN, 'belt', [ring((cx, 0.0, z), angles, r) for z, cx, r in belt], pelvis, smooth=50)
-    box = [(-5.4, -4.6), (5.4, -4.6), (5.4, 4.6), (-5.4, 4.6)]
-    m.loft(GEO_MAIN, 'buckle', [section((17.6, 0.0, 45.8), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), box),
-                                section((19.8, 0.0, 45.8), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0),
-                                        [(a * 0.82, b * 0.78) for a, b in box])],
-           pelvis, caps=('end',), smooth=40)
-    gem = [(19.9, 0.0, 48.0), (19.9, 1.8, 45.8), (19.9, 0.0, 43.6), (19.9, -1.8, 45.8), (21.5, 0.0, 45.8)]
-    m.mesh(GEO_GLOW, 'gem', gem, [(0.5, 0.0), (1.0, 0.5), (0.5, 1.0), (0.0, 0.5), (0.5, 0.5)], [pelvis] * 5,
-           [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], smooth=30)
-
-    # -- hips, the team coloured tabard and the leg plates
-    def hip_bones(p):
-        if p[2] > 37.0 or abs(p[1]) < 4.0:
-            return pelvis
-        return _bones('Pelvis', 'ThighL' if p[1] > 0 else 'ThighR')
-    hips = [(42.0, 0.5, [15.0, 15.8, 18.2, 15.4, 12.2]),
-            (35.0, 0.3, [13.6, 14.4, 16.4, 14.0, 11.4]),
-            (29.5, 0.0, [7.0, 8.0, 10.4, 8.4, 6.4]),
-            (28.0, 0.0, [0.0] * 5)]
-    m.loft(GEO_MAIN, 'hips', [ring((cx, 0.0, z), angles, r) for z, cx, r in hips], hip_bones, smooth=50)
-    for front, region in ((1, 'cloth'), (-1, 'backcloth')):
-        xs = [17.4, 16.2, 14.8] if front > 0 else [-13.0, -12.0, -11.0]
-        rows = []
-        for x, z, w in zip(xs, [42.0, 31.5, 21.0], [7.4, 6.8, 6.0]):
-            rows.append([(x, -w, z), (x + front * 1.0, 0.0, z), (x, w, z)])
-        m.sheet(GEO_MAIN, region, rows, pelvis, outward=(float(front), 0.0, 0.0), two_sided=True, thickness=0.5,
-                smooth=40)
-    for side in (1, -1):
-        thigh = B[_side('ThighL', side)]
-        rows = []
-        for z, r in ((42.5, 18.6), (30.5, 21.0)):
-            rows.append([(0.5 + r * math.cos(math.radians(a)), side * r * math.sin(math.radians(a)), z)
-                         for a in (35, 60, 85)])
-        m.sheet(GEO_MAIN, 'tasset', rows, [_bones('Pelvis', _side('ThighL', side)), thigh],
-                outward=(0.5, side * 0.87, 0.0), two_sided=True, thickness=0.6, smooth=40)
-
-    for side in (1, -1):
-        def bone(name, side=side):
-            return B[_side(name, side)]
-
-        def blend(*names, side=side):
-            return _bones(*(_side(n, side) for n in names))
-
-        def place(sections, side=side):
-            return [[p if side > 0 else mirror(p) for p in sec] for sec in sections]
-
-        # -- legs: leather breeches, knee guards, fur topped boots
-        m.loft(GEO_MAIN, 'thigh', place(path_sections(
-            [(0.0, 10.0, 43.0), (1.8, 11.8, 33.0), (4.0, 13.0, 24.0)], [(10.0, 9.4), (10.2, 9.6), (8.4, 8.0)], 6,
-            phase=math.pi / 6)),
-            [blend('Pelvis', 'ThighL'), bone('ThighL'), blend('ThighL', 'ShinL')], smooth=60)
-        knee = [(12.0, 8.4, 28.0), (12.0, 17.6, 28.0), (12.0, 17.6, 19.0), (12.0, 8.4, 19.0), (15.6, 13.0, 23.0)]
-        m.mesh(GEO_MAIN, 'knee', place([knee])[0], [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.5, 0.5)],
-               [bone('ShinL')] * 5, [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], smooth=30,
-               outward=(1.0, 0.0, 0.0))
-        m.loft(GEO_MAIN, 'boot', place(path_sections(
-            [(4.2, 13.2, 24.0), (3.4, 13.8, 19.0), (2.0, 14.6, 13.5), (0.8, 15.2, 8.0)],
-            [(8.0, 7.6), (9.6, 9.2), (8.2, 7.8), (8.4, 8.0)], 6, phase=math.pi / 6)), bone('ShinL'), smooth=60)
-        m.loft(GEO_MAIN, 'fur', place(path_sections(
-            [(3.6, 13.6, 21.6), (3.2, 13.9, 17.2)], [(10.2, 9.8), (10.6, 10.2)], 8, shape=zigzag(1))),
-            bone('ShinL'), smooth=60)
-        foot = [(-6.0, 15.4, 6.2, 5.0, 4.8), (4.0, 16.0, 8.0, 5.0, 4.4), (16.0, 17.0, 7.4, 3.0, 3.4)]
-        sections = []
-        for x, yc, w, top, zc in foot:
-            pts = [(0.0, top), (-w, 0.3 * top), (-0.8 * w, -zc), (0.8 * w, -zc), (w, 0.3 * top),
-                   (0.0, top)][:5]
-            sections.append([(x, yc + a, zc + b) for a, b in pts])
-        sections.append([(25.0, 17.6, 3.4)] * 5)
-        m.loft(GEO_MAIN, 'foot', place(sections), bone('FootL'), caps=('start',), smooth=45)
-
-        # -- shoulders: great angular pauldrons with a spike
-        pauldron = [(16.0, -1.0, 83.5, 10.0, 10.0, 4.0, -3.0, 2.0), (27.0, -1.2, 82.6, 15.6, 15.2, 9.4, -7.0, 2.6),
-                    (40.0, -2.0, 77.0, 14.0, 13.4, 7.2, -10.6, 2.6), (47.0, -2.6, 71.5, 8.0, 7.6, 3.4, -8.0, 1.8)]
-        sections = []
-        for y, cx, cz, fx, bx, zt, zb, t in pauldron:
-            outer = [(fx, zb), (fx * 0.8, zt * 0.7), (0.0, zt), (-bx * 0.8, zt * 0.7), (-bx, zb)]
-            inner = [(-bx + t, zb + t * 0.5), (0.0, zt - t), (fx - t, zb + t * 0.5)]
-            sections.append([(cx + a, y, cz + b) for a, b in outer + inner])
-        m.loft(GEO_MAIN, 'pauldron', place(sections), bone('ShoulderL'), caps=('end',), smooth=38,
-               us=[0.0, 0.15, 0.3, 0.45, 0.6, 0.7, 0.82, 0.95])
-        spike = [(-6.0, 30.0, 89.6), (3.0, 30.0, 89.6), (3.0, 36.0, 88.0), (-6.0, 36.0, 88.0), (-3.2, 38.8, 102.0)]
-        m.mesh(GEO_MAIN, 'spike', place([spike])[0], [(0.0, 1.0), (0.5, 1.0), (1.0, 1.0), (0.5, 1.0), (0.5, 0.0)],
-               [bone('ShoulderL')] * 5, [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], smooth=30)
-
-        # -- bare muscled arms, iron gauntlets, big fists
-        m.loft(GEO_MAIN, 'arm', place(path_sections(
-            [(-1.0, 29.0, 80.0), (-2.0, 33.5, 70.0), (-4.0, 37.2, 60.5)], [(9.0, 8.4), (10.0, 9.4), (7.6, 7.2)], 6,
-            phase=math.pi / 6)), [bone('ArmL'), bone('ArmL'), blend('ArmL', 'ForeL')], smooth=65)
-        m.loft(GEO_MAIN, 'fur', place(path_sections(
-            [(-4.0, 37.2, 63.2), (-3.6, 37.8, 58.0)], [(9.2, 8.8), (9.8, 9.4)], 8, shape=zigzag(1))),
-            bone('ForeL'), smooth=60)
-        m.loft(GEO_MAIN, 'gauntlet', place(path_sections(
-            [(-3.8, 37.6, 60.0), (-2.2, 39.6, 54.0), (0.0, 42.0, 47.0)], [(8.0, 7.6), (9.0, 8.6), (11.4, 10.8)], 6,
-            phase=math.pi / 6)), bone('ForeL'), smooth=50)
-        fx, fy, fz = FIST
-        m.loft(GEO_MAIN, 'hand', place(path_sections(
-            [(0.4, 42.4, 47.5), (fx, fy, fz), (2.8, 43.8, 35.0)], [(6.6, 5.8), (8.4, 6.6), (6.8, 5.6)], 6,
-            phase=math.pi / 6)), bone('HandL'), caps=('end',), smooth=60)
-        m.loft(GEO_MAIN, 'thumb', place(path_sections(
-            [(7.4, 37.4, 43.6), (11.4, 40.0, 40.4)], [(2.6, 2.6), (1.6, 1.6)], 4, hint=(0.0, 0.0, 1.0))),
-            bone('HandL'), caps=('end',), smooth=60)
-
-    # -- the round shield on the left forearm: an octagon
-    fore = B['ForeL']
-    up = (0.0, 0.0, 1.0)
-    across = cross(SHIELD_N, up)
-    R = SHIELD_R
-    rings = [(0.0, -1.3), (R, -0.7), (R, 0.9), (R - 4.6, 2.6), (5.8, 4.0), (0.0, 10.4)]
-    sections = []
-    for r, h in rings:
-        sec = []
-        for k in range(8):
-            a = 2 * math.pi * (k + 0.5) / 8
-            rim = add(mul(across, r * math.cos(a)), mul(up, r * math.sin(a)))
-            sec.append(add(add(SHIELD_C, mul(SHIELD_N, h)), rim))
-        sections.append(sec)
-    m.loft(GEO_MAIN, 'shield', sections, fore, vs=[0.0, 0.2, 0.36, 0.55, 0.8, 1.0], smooth=35)
-
-    # -- the warhammer: head down at the dwarf's right side
-    hb = B['Hammer']
-    grip = mirror(FIST)
-    d = HAMMER_DIR
-    head_c = add(grip, mul(d, HAMMER_HEAD))
-    h = norm(sub(up, mul(d, dot(up, d))))          # along the hammer head, square to the handle
-    s = cross(d, h)
-
-    def along(c, axis, offsets_sizes, a_axis, b_axis):
-        return [section(add(c, mul(axis, o)), a_axis, b_axis, octagon(sa, sb)) for o, sa, sb in offsets_sizes]
-    m.loft(GEO_MAIN, 'handle', path_sections([add(grip, mul(d, -13.0)), head_c], [(2.1, 2.1), (2.1, 2.1)], 4,
-                                             hint=h, phase=math.pi / 4), hb, smooth=60)
-    m.loft(GEO_MAIN, 'grip', path_sections([add(grip, mul(d, -12.0)), add(grip, mul(d, -6.0))],
-                                           [(2.6, 2.6), (2.6, 2.6)], 4, hint=h, phase=math.pi / 4), hb, smooth=60)
-    m.loft(GEO_MAIN, 'gold', path_sections([add(grip, mul(d, -13.2)), add(grip, mul(d, -15.6))],
-                                           [(3.2, 3.2), (2.0, 2.0)], 4, hint=h, phase=math.pi / 4), hb,
-           caps=('start', 'end'), smooth=40)
-    m.loft(GEO_MAIN, 'hammer', along(head_c, h, [(-12.5, 6.4, 6.4), (12.5, 6.4, 6.4)], d, s), hb,
-           caps=('start', 'end'), smooth=40)
+    def along(c, axis, rows, ax, ay):
+        return [section(add(c, mul(axis, o)), ax, ay, octagon(sa, sb)) for o, sa, sb in rows]
+    m.loft(0, 'handle', path_sections([add(grip, mul(a, -13.0)), head], [(2.3, 2.3), (2.3, 2.3)], 6, hint=h),
+           bone, smooth=60)
+    m.loft(0, 'grip', path_sections([add(grip, mul(a, -6.0)), add(grip, mul(a, 6.0))], [(2.8, 2.8), (2.8, 2.8)], 6,
+                                    hint=h), bone, smooth=60)
+    m.loft(0, 'gold', along(grip, a, [(-13.4, 3.4, 3.4), (-16.0, 2.2, 2.2)], h, s), bone, caps=('start', 'end'),
+           smooth=40)
+    m.loft(0, 'hammer', along(head, h, [(-13.0, 6.2, 6.2), (-11.0, 7.4, 7.4), (11.0, 7.4, 7.4), (13.0, 6.2, 6.2)],
+                              a, s), bone, caps=('start', 'end'), smooth=40)
     for o in (-8.0, 8.0):
-        m.loft(GEO_MAIN, 'gold', along(head_c, h, [(o - 1.0, 6.9, 6.9), (o + 1.0, 6.9, 6.9)], d, s), hb, smooth=40)
-    spike = [add(head_c, mul(h, 12.0)), add(head_c, mul(h, 21.0))]
-    m.loft(GEO_MAIN, 'spike', path_sections(spike, [(3.8, 3.8), (0.05, 0.05)], 4, hint=d, phase=math.pi / 4), hb,
-           smooth=30)
-    return m
+        m.loft(0, 'gold', along(head, h, [(o - 1.2, 8.0, 8.0), (o + 1.2, 8.0, 8.0)], a, s), bone, smooth=40)
+    m.loft(0, 'spike', path_sections([add(head, mul(h, 12.5)), add(head, mul(h, 23.0))], [(4.2, 4.2), (0.05, 0.05)],
+                                     4, hint=a, phase=math.pi / 4), bone, smooth=30)
+    return m.geosets[0], head
+
+
+def build_topknot(to_space, bone):
+    """A topknot of black hair, bound with a gold ring, on the bald crown."""
+    m = Builder(1, atlas)
+    path = [(1.5, 0.0, 125.5), (-0.5, 0.0, 129.6), (-4.6, 0.0, 132.0), (-9.6, 0.0, 130.6), (-12.6, 0.0, 126.4)]
+    radii = [(3.4, 3.0), (2.8, 2.5), (2.9, 2.6), (2.0, 1.8), (0.15, 0.15)]
+    m.loft(0, 'hair', [[to_space(p) for p in sec] for sec in
+                       path_sections(path, radii, 5, hint=(0.0, 1.0, 0.0))], bone, smooth=60)
+    ring = [(1.4, 0.0, 127.0), (1.0, 0.0, 128.8)]
+    m.loft(0, 'gold', [[to_space(p) for p in sec] for sec in
+                       path_sections(ring, [(3.8, 3.8), (3.5, 3.5)], 6, hint=(0.0, 1.0, 0.0))], bone, smooth=60)
+    return m.geosets[0]
+
+
+def build_eyes(middle_y, eye_centres, bones, size=1.0):
+    """Glowing slits over the painted eyes, slanted in a scowl."""
+    m = Builder(1, atlas)
+    for (cx, cy, cz), bone in zip(eye_centres, bones):
+        side = 1.0 if cy > middle_y else -1.0
+        quad = [(cx - 0.2 * size, cy - side * 1.5 * size, cz - 0.3 * size),
+                (cx, cy, cz + 0.6 * size),
+                (cx - 0.5 * size, cy + side * 1.6 * size, cz + 0.4 * size),
+                (cx, cy, cz - 0.5 * size)]
+        m.mesh(0, 'eye', quad, [(0.0, 0.5), (0.5, 0.0), (1.0, 0.5), (0.5, 1.0)], [bone] * 4, [[0, 1, 2], [0, 2, 3]],
+               outward=(1.0, 0.0, 0.0), smooth=80)
+    return m.geosets[0]
+
+
+class Space:
+    """A mapping from the King's model space into another (identity, or the portrait's)."""
+
+    def __init__(self, fn=None):
+        self.fn = fn
+
+    def __call__(self, p):
+        return self.fn(p) if self.fn else p
 
 
 # ---------------------------------------------------------------------------
-# painting: flat colour, soft gradients, dark edges and bright highlights --
-# the way the original unit skins were painted
+# the dwarf proportions
+# ---------------------------------------------------------------------------
+
+def _upper_body(model):
+    """Object ids that move rigidly with the chest (not the legs or cape)."""
+    nodes = {e.node.object_id: e.node for _, e in model.all_nodes()}
+    chest = model.node('Bone_Chest').node.object_id
+    out = set()
+    for oid, n in nodes.items():
+        k = oid
+        while k >= 0:
+            if k == chest:
+                if not n.name.startswith('Bone_Cape'):
+                    out.add(oid)
+                break
+            k = nodes[k].parent
+    return out
+
+
+def deform(p, rigid):
+    x, y, z = p
+    if rigid or z > HIP_Z:
+        z = z - DROP
+    else:
+        z = z * LEG_SCALE
+    return (x * WIDEN[0], y * WIDEN[1], z)
+
+
+def scale_of(p, rigid):
+    return (WIDEN[0], WIDEN[1], 1.0 if rigid or p[2] > HIP_Z else LEG_SCALE)
+
+
+def make_dwarf(model):
+    rigid = _upper_body(model)
+    for g in model.geosets:
+        for i, v in enumerate(g.vertices):
+            r = all(b in rigid for b in g.bones_of(i))
+            sx, sy, sz = scale_of(v, r)
+            n = g.normals[i]
+            g.normals[i] = norm((n[0] / sx, n[1] / sy, n[2] / sz))
+            g.vertices[i] = deform(v, r)
+    root = model.node('Root').node.object_id
+    for _, e in model.all_nodes():
+        oid = e.node.object_id
+        pivot = model.pivots[oid]
+        r = oid in rigid
+        sx, sy, sz = scale_of(pivot, r)
+        if oid == root:
+            sz = LEG_SCALE
+        for t in e.node.tracks:
+            if t.tag == b'KGTR':
+                for key in t.keys:
+                    key[1] = (key[1][0] * sx, key[1][1] * sy, key[1][2] * sz)
+                    if key[2] is not None:
+                        key[2] = (key[2][0] * sx, key[2][1] * sy, key[2][2] * sz)
+                        key[3] = (key[3][0] * sx, key[3][1] * sy, key[3][2] * sz)
+        model.pivots[oid] = deform(pivot, r)
+        if e.kind == 'CLID':
+            shape, pts, radius = e.collision()
+            e.set_collision(shape, [deform(p, False) for p in pts], radius * 0.85 if radius else radius)
+
+
+def finish(model):
+    """Extents and sequence bounds after editing."""
+    every = []
+    for g in model.geosets:
+        g.extent = extent(g.vertices)
+        g.sequence_extents = [g.extent] * len(model.sequences)
+        every += g.vertices
+    model.extent = extent(every)
+    for s in model.sequences:
+        s.extent = model.extent
+
+
+# ---------------------------------------------------------------------------
+# the models
+# ---------------------------------------------------------------------------
+
+def _check_king(king):
+    for geoset, path in KING_TEXTURES.items():
+        layer_texture = mdxedit.layer_textures(king.materials[king.geosets[geoset].material])[-1]
+        if king.textures[layer_texture].path != path:
+            raise ValueError('King.zip is not the expected model (geoset %d)' % geoset)
+
+
+def build_models():
+    """Returns (model, portrait) as mdxedit.Model objects."""
+    king = mdxedit.Model(read_reference('King/King.mdx'))
+    portrait = mdxedit.Model(read_reference('King/King_Portrait.mdx'))
+    _check_king(king)
+    heads = HeadMap(king.geosets[HEAD], portrait.geosets[P_HEAD], portrait)
+    head_bone = king.node('Bone_Head').node.object_id
+    sword_bone = king.node('Sword').node.object_id
+
+    # our texture and its materials, in both models
+    def add_materials(model):
+        model.textures.append(mdxedit.Texture(TEXTURE_PATH))
+        tex = len(model.textures) - 1
+        model.materials.append(mdxedit.material([(0, 0, tex, 1.0)]))
+        model.materials.append(mdxedit.material([(3, 0x21, tex, 1.0)]))       # additive, unshaded, unfogged
+        return len(model.materials) - 2, len(model.materials) - 1
+
+    # -- the main model
+    painted, glow = add_materials(king)
+    head = king.geosets[HEAD]
+    for i in range(len(head.vertices)):
+        if heads.is_hair(i):
+            head.vertices[i] = grow_beard(head.vertices[i])
+    hair = split(head, heads.is_hair)
+    king.geosets.append(hair)
+    hair_geoset = len(king.geosets) - 1
+    armour = king.geosets[ARMOUR]
+    drop_faces(armour, lambda i: armour.bones_of(i) == [head_bone])          # the crown
+    sword = king.geosets[SWORD]
+    hammer, hammer_head = build_hammer(sword.vertices, sword_bone)
+    king.geosets[SWORD] = to_geoset(hammer, painted)
+    eyes = [ray_hit(head, heads.to_main(portrait.pivots[portrait.node(n).node.object_id]), (1.0, 0.0, 0.0))
+            for n in ('Portrait__EyeL01', 'Portrait__EyeR01')]
+    eyes = [add(e, (0.35, 0.0, 0.0)) for e in eyes]
+    king.geosets.append(to_geoset(build_eyes(0.0, eyes, [head_bone, head_bone]), glow))
+    king.geosets.append(to_geoset(build_topknot(Space(), head_bone), painted))
+    for g in (BODY, ARMS, ARMOUR, TASSETS):
+        tint(king, g, ARMOUR_TINT)
+    tint(king, HEAD, SKIN_TINT)
+    tint(king, hair_geoset, HAIR_TINT)
+    tint(king, CAPE, CAPE_TINT)
+    tint(king, SWORD_GLOW, (1.0, 1.0, 1.0), alpha=0.0)                        # the sword's glow
+    for name in ('Weapon Ref', 'BlizRibbon01'):                             # at the hammer's head
+        king.pivots[king.node(name).node.object_id] = hammer_head
+    make_dwarf(king)
+    king.sequence('Walk').move_speed = WALK_SPEED
+    king.name = 'DarkIronThane'
+    finish(king)
+
+    # -- the portrait: the same head
+    painted, glow = add_materials(portrait)
+    ph = portrait.geosets[P_HEAD]
+    portrait_hair = set()
+    for j, v in enumerate(ph.vertices):
+        if {heads.portrait_names[b] for b in ph.bones_of(j)} & BEARD_BONES:
+            portrait_hair.add(j)
+            ph.vertices[j] = heads.to_portrait(grow_beard(heads.to_main(v)))
+    p_hair = split(ph, lambda j: j in portrait_hair)
+    portrait.geosets.append(p_hair)
+    p_hair_geoset = len(portrait.geosets) - 1
+    p_head_bone = portrait.node('Portrait__Head01').node.object_id
+    parmour = portrait.geosets[P_ARMOUR]
+    drop_faces(parmour, lambda i: parmour.bones_of(i) == [p_head_bone])      # the crown
+    p_eyes = []
+    p_eye_bones = []
+    for n in ('Portrait__EyeL01', 'Portrait__EyeR01'):
+        e = portrait.node(n).node.object_id
+        hit = ray_hit(ph, portrait.pivots[e], (1.0, 0.0, 0.0))
+        p_eyes.append(add(hit, (0.35 * heads.scale, 0.0, 0.0)))
+        p_eye_bones.append(e)
+    portrait.geosets.append(to_geoset(build_eyes(heads.mp[1], p_eyes, p_eye_bones, size=heads.scale), glow))
+    portrait.geosets.append(to_geoset(build_topknot(Space(heads.to_portrait), p_head_bone), painted))
+    tint(portrait, P_ARMOUR, ARMOUR_TINT)
+    head_anim = tint(portrait, P_HEAD, SKIN_TINT)
+    hair_anim = tint(portrait, p_hair_geoset, HAIR_TINT)
+    hair_anim.tracks = head_anim.tracks
+    for g in (p_hair_geoset + 1, p_hair_geoset + 2):
+        tint(portrait, g, (1.0, 1.0, 1.0)).tracks = head_anim.tracks
+    portrait.name = 'DarkIronThane_Portrait'
+    finish(portrait)
+    return king, portrait
+
+
+# ---------------------------------------------------------------------------
+# the small texture for the added pieces
 # ---------------------------------------------------------------------------
 
 def _clamp(x):
@@ -470,12 +499,7 @@ def _clamp(x):
 
 def mix(a, b, t):
     t = _clamp(t)
-    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t)
-
-
-def smooth(e0, e1, x):
-    t = _clamp((x - e0) / (e1 - e0))
-    return t * t * (3 - 2 * t)
+    return tuple(a[k] + (b[k] - a[k]) * t for k in range(3))
 
 
 def ramp(stops, x):
@@ -487,584 +511,56 @@ def ramp(stops, x):
     return stops[-1][1]
 
 
-def gauss(dx, dy, sx, sy):
-    return math.exp(-(dx / sx) ** 2 - (dy / sy) ** 2)
-
-
-SKIN = [(0.0, (30, 30, 58)), (0.3, (74, 78, 118)), (0.6, (122, 128, 166)), (0.85, (170, 176, 206)),
-        (1.0, (226, 230, 244))]
-HAIR = [(0.0, (10, 10, 18)), (0.35, (36, 37, 54)), (0.65, (80, 84, 108)), (0.85, (134, 140, 166)),
-        (1.0, (196, 202, 222))]
-LEATHER = [(0.0, (34, 20, 12)), (0.35, (78, 48, 27)), (0.65, (124, 82, 46)), (0.9, (170, 124, 76)),
-           (1.0, (206, 168, 114))]
-FUR = [(0.0, (52, 46, 44)), (0.4, (122, 114, 106)), (0.75, (198, 194, 186)), (1.0, (246, 244, 238))]
-WOOD = [(0.0, (40, 22, 12)), (0.45, (92, 56, 30)), (0.8, (140, 94, 54)), (1.0, (178, 130, 80))]
-# metal is painted as bands of light and dark, like a reflection
-IRON = [(0.0, (206, 204, 212)), (0.18, (132, 128, 136)), (0.42, (42, 39, 44)), (0.58, (15, 14, 17)),
-        (0.76, (84, 80, 86)), (0.9, (152, 148, 154)), (1.0, (72, 68, 74))]
+IRON = [(0.0, (196, 194, 202)), (0.18, (124, 120, 128)), (0.42, (40, 37, 42)), (0.58, (15, 14, 17)),
+        (0.76, (80, 76, 82)), (0.9, (146, 142, 148)), (1.0, (70, 66, 72))]
 GOLD = [(0.0, (255, 246, 196)), (0.2, (238, 196, 92)), (0.45, (164, 104, 30)), (0.6, (88, 50, 14)),
         (0.78, (196, 140, 50)), (0.9, (240, 206, 110)), (1.0, (150, 96, 30))]
-FIRE = [(0.0, (110, 14, 4)), (0.4, (226, 70, 12)), (0.75, (255, 170, 40)), (1.0, (255, 244, 170))]
-DARK = (12, 10, 14)
+FIRE = [(0.0, (0, 0, 0)), (0.3, (120, 20, 4)), (0.6, (240, 90, 16)), (0.85, (255, 190, 60)), (1.0, (255, 250, 200))]
+WOOD = [(0.0, (40, 22, 12)), (0.45, (92, 56, 30)), (0.8, (140, 94, 54)), (1.0, (178, 130, 80))]
+LEATHER = [(0.0, (34, 20, 12)), (0.5, (96, 60, 34)), (1.0, (170, 124, 76))]
+HAIR = [(0.0, (8, 8, 14)), (0.4, (30, 31, 44)), (0.75, (74, 78, 100)), (1.0, (150, 156, 182))]
 
 
-def team(shade):
-    """Team colour, darkened by `shade` (0 = full colour, 1 = black)."""
-    return (0, 0, 0, int(255 * _clamp(shade)))
-
-
-def edge(v, width):
-    """1 at the edges of a 0..1 range, falling to 0 over `width`."""
-    return smooth(width, 0.0, min(v, 1.0 - v))
-
-
-class Painter:
-    """Each method paints one atlas region from its (u, v) in 0..1, and
-    returns (r, g, b), or (r, g, b, a) where team colour shows through."""
-
-    # -- head ----------------------------------------------------------------
-
-    def head(self, u, v):
-        a = head_angle(u)
-        aa = abs(a)
-        z = HEAD[0][0] + (HEAD[-1][0] - HEAD[0][0]) * v
-        k = 0.56 + 0.12 * math.cos(math.radians(a)) + 0.12 * smooth(Z_BROW, Z_CROWN + 4, z)
-        k -= 0.12 * smooth(Z_NOSE - 3.5, Z_MOUTH - 4, z)
-        k += 0.28 * gauss(z - Z_CROWN, a, 2.2, 40)                  # shine on the bald crown
-        k += 0.18 * gauss(a, z - Z_NOSE - 1.5, 6, 3.0)              # nose
-        k += 0.14 * gauss(aa - 55, z - Z_NOSE - 2.0, 12, 2.4)       # cheekbones
-        k += 0.12 * gauss(aa - 25, z - Z_BROW - 0.3, 16, 1.2)       # brow ridge
-        k -= 0.4 * gauss(aa - 35, z - Z_EYE - 0.8, 11, 1.7)         # sockets
-        k -= 0.3 * gauss(aa - 9, z - Z_NOSE + 1.4, 3, 0.8)          # nostrils
-        for wz in (Z_FOREHEAD - 0.8, Z_FOREHEAD + 0.8):             # furrowed forehead
-            k -= 0.22 * gauss(z - wz - 0.012 * aa, 0, 0.35, 1) * smooth(42, 15, aa)
-        k -= 0.25 * gauss(aa - 2.5, z - Z_BROW + 0.1, 1.6, 1.4)     # frown
-        c = ramp(SKIN, k)
-        c = mix(c, (c[0] * 1.15 + 14, c[1] * 0.92, c[2] * 0.94), 0.55 * gauss(aa - 32, z - Z_NOSE - 0.5, 16, 2.5))
-        c = mix(c, (255, 130, 40), 0.5 * gauss(aa - 35, z - Z_EYE - 0.9, 9, 1.4))   # eye glow on the sockets
-        hair = max(smooth(Z_MOUTH + 2.3, Z_MOUTH + 0.5, z),
-                   smooth(66, 80, aa) * smooth(Z_FOREHEAD - 1, Z_BROW - 0.5, z))
-        return mix(c, (22, 22, 34), 0.9 * hair)
-
-    def ear(self, u, v):
-        return ramp(SKIN, 0.62 - 0.25 * gauss(u - 0.5, v - 0.5, 0.25, 0.25) - 0.1 * v)
-
-    def eye(self, u, v):
-        return ramp(FIRE, 1.0 - 1.6 * math.hypot(u - 0.5, (v - 0.5) * 0.8))
-
-    def gem(self, u, v):
-        return ramp(FIRE, 1.0 - 1.4 * math.hypot(u - 0.5, v - 0.5) + 0.1 * math.sin(u * 30))
-
-    # -- hair ----------------------------------------------------------------
-
-    def _hair(self, u, v, strands, k0):
-        w = u * strands + 0.3 * math.sin(v * 6.0 + u * 4.0)
-        lock = abs(math.sin(math.pi * w))
-        k = k0 + 0.28 * (lock - 0.5) + 0.25 * smooth(0.7, 1.0, lock) * (0.5 + 0.5 * math.sin(v * 8 + u * 17))
-        if lock < 0.14:
-            k -= 0.18
-        return ramp(HAIR, k)
-
-    def beard(self, u, v):
-        front = gauss(u - 0.5, 0, 0.3, 1)
-        return self._hair(u, v, 13, 0.32 + 0.2 * front + 0.1 * smooth(0.3, 0.0, v) - 0.14 * smooth(0.6, 1.0, v))
-
-    def moustache(self, u, v):
-        return self._hair(u, v, 3, 0.52 - 0.15 * v)
-
-    def topknot(self, u, v):
-        return self._hair(u, v, 4, 0.46)
-
-    def brow(self, u, v):
-        return self._hair(u, v, 2, 0.34)
-
-    # -- skin ----------------------------------------------------------------
-
-    def arm(self, u, v):
-        front = math.cos(2 * math.pi * (u - 0.5))
-        k = 0.54 + 0.14 * front + 0.2 * gauss(u - 0.5, v - 0.4, 0.13, 0.22) + 0.1 * gauss(min(u, 1 - u), v - 0.3,
-                                                                                           0.12, 0.2)
-        k -= 0.25 * edge(v, 0.14)
-        c = ramp(SKIN, k)
-        zig = abs(((u * 8.0) % 1.0) - 0.5) * 2.0                   # clan tattoo round the arm
-        if abs(v - 0.62 - 0.07 * zig) < 0.035 or abs(v - 0.52) < 0.014 or abs(v - 0.76) < 0.014:
-            c = mix(c, (16, 18, 40), 0.85)
-        return c
-
-    def hand(self, u, v):
-        front = math.cos(2 * math.pi * (u - 0.5))
-        k = 0.56 + 0.15 * front - 0.12 * v
-        if front > -0.2 and 0.38 < v < 0.95:
-            for g in (0.52, 0.66, 0.8):                            # fingers curled round the haft
-                k -= 0.3 * gauss(v - g, 0, 0.02, 1) * smooth(-0.2, 0.3, front)
-            k += 0.14 * gauss(v - 0.42, 0, 0.05, 1)                # knuckles
-        return ramp(SKIN, k)
-
-    def thumb(self, u, v):
-        c = ramp(SKIN, 0.6 + 0.12 * math.cos(2 * math.pi * (u - 0.5)))
-        return mix(c, (178, 174, 190), 0.7) if v > 0.7 and abs(u - 0.5) < 0.2 else c
-
-    # -- armour and clothing -------------------------------------------------
-
-    def torso(self, u, v):
-        front = math.cos(2 * math.pi * (u - 0.5))
-        if v > 0.86:
-            return ramp(GOLD, 0.2 + 2.5 * (v - 0.86))
-        if v < 0.05:
-            return ramp(IRON, 0.5)
-        if front > 0.3:                                            # breastplate, catching the light
-            if abs(u - 0.5) < 0.012:
-                return ramp(GOLD, 0.25)
-            if abs(v - 0.56 + 0.4 * abs(u - 0.5)) < 0.014:
-                return ramp(GOLD, 0.3)
-            return ramp(IRON, 0.08 + 0.3 * (1 - front) + 0.12 * (1 - v))
-        lame = (v * 7.0) % 1.0                                     # overlapping plates on the back
-        if lame < 0.08:
-            return DARK
-        return ramp(IRON, 0.12 + 0.3 * lame + 0.1 * (1 - front))
-
-    def pauldron(self, u, v):
-        if u > 0.62:                                               # leather lining
-            return ramp(LEATHER, 0.3 + 0.1 * v)
-        if u < 0.06 or 0.54 < u < 0.62 or v > 0.88 or v < 0.07:    # gold trim
-            return ramp(GOLD, 0.2 + 0.5 * abs(math.sin(u * 14 + v * 3)))
-        if abs(u - 0.3) < 0.014:                                   # ridge
-            return ramp(GOLD, 0.15)
-        for ru in (0.1, 0.5):                                      # a few big rivets
-            if math.hypot((u - ru) * 3.0, ((v * 4.0) % 1.0) - 0.5) < 0.16:
-                return ramp(GOLD, 0.1)
-        light = gauss(u - 0.24, 0, 0.07, 1) * (0.7 + 0.3 * v)
-        if light > 0.45:
-            return (255, 255, 255, int(255 * 0.5 * (light - 0.45)))
-        return team(0.1 + 0.45 * smooth(0.2, 0.5, abs(u - 0.3)) + 0.15 * v)
-
-    def shield(self, u, v):
-        if v < 0.17:                                               # planks on the back
-            p = (u * 6.0) % 1.0
-            return ramp(WOOD, 0.5 - 0.3 * edge(p, 0.1))
-        if v < 0.38:                                               # iron rim with gold edge
-            if abs(v - 0.34) < 0.025:
-                return ramp(GOLD, 0.2)
-            return ramp(IRON, 0.2 + 2.0 * (v - 0.17))
-        if v > 0.78:                                               # boss and spike
-            return ramp(IRON, 0.15 + 0.6 * (v - 0.78) / 0.22)
-        # team coloured field with flames licking out from the boss
-        t = (v - 0.38) / 0.4                                       # 0 at the rim, 1 at the boss
-        a = (u * 10.0) % 1.0 - 0.5
-        width = 0.45 * smooth(0.2, 0.95, t)
-        if abs(a) < width:
-            heat = 1.0 - abs(a) / max(width, 1e-6)
-            return DARK if heat < 0.2 else ramp(FIRE, 0.3 + 0.7 * heat * t)
-        return team(0.15 + 0.5 * smooth(0.5, 0.0, t))
-
-    def gauntlet(self, u, v):
-        front = math.cos(2 * math.pi * (u - 0.5))
-        if v < 0.1 or v > 0.86:
-            return ramp(GOLD, 0.15 + 2.0 * min(v, 1 - v))
-        if 0.44 < v < 0.56:
-            return team(0.2 + 0.3 * (1 - front) / 2)
-        if abs(v - 0.4) < 0.02 or abs(v - 0.6) < 0.02:
-            return ramp(GOLD, 0.3)
-        return ramp(IRON, 0.1 + 0.3 * (1 - front) / 2 + 0.15 * v)
-
-    def belt(self, u, v):
-        cell = (u * 14.0) % 1.0
-        if 0.2 < cell < 0.8 and 0.2 < v < 0.8:
-            return ramp(GOLD, 0.15 + 0.5 * abs(v - 0.35))
-        return ramp(LEATHER, 0.45 - 0.25 * edge(v, 0.15))
-
-    def buckle(self, u, v):
-        return ramp(GOLD, 0.1 + 0.7 * v)
-
-    def cloth(self, u, v):
-        x, y = (u - 0.5) * 2, v
-        if min(u, 1 - u) < 0.1 or y > 0.92:
-            return ramp(GOLD, 0.2 + 2 * min(u, 1 - u, 1 - y))
-        anvil = ((abs(x) < 0.55 and abs(y - 0.3) < 0.07) or (abs(x) < 0.18 and 0.3 < y < 0.55)
-                 or (abs(x) < 0.42 and abs(y - 0.6) < 0.06)
-                 or (0.55 <= x < 0.8 and abs(y - 0.3) < 0.07 * (0.8 - x) / 0.25))
-        if anvil:
-            return DARK
-        return team(0.1 + 0.4 * y)
-
-    def backcloth(self, u, v):
-        return ramp(LEATHER, 0.5 - 0.15 * v - 0.3 * edge(u, 0.08))
-
-    def tasset(self, u, v):
-        if min(u, 1 - u) < 0.12 or v > 0.88:
-            return ramp(GOLD, 0.2 + 2 * min(u, 1 - u, 1 - v))
-        if abs(u - 0.5) < 0.1:
-            return team(0.25 + 0.3 * v)
-        return ramp(IRON, 0.25 + 0.4 * v)
-
-    def hips(self, u, v):
-        return ramp(LEATHER, 0.45 + 0.12 * math.cos(2 * math.pi * (u - 0.5)) - 0.2 * v)
-
-    def thigh(self, u, v):
-        k = 0.5 + 0.15 * math.cos(2 * math.pi * (u - 0.5)) - 0.1 * v
-        k -= 0.2 * max(0.0, math.sin(u * math.pi * 8 + v * 2.0)) ** 8
-        return ramp(LEATHER, k)
-
-    def knee(self, u, v):
-        return ramp(GOLD, 0.3) if v < 0.12 else ramp(IRON, 0.1 + 0.3 * v)
-
-    def boot(self, u, v):
-        front = math.cos(2 * math.pi * (u - 0.5))
-        c = ramp(LEATHER, 0.52 + 0.15 * front - 0.12 * v)
-        if 0.4 < v < 0.56:                                         # green and gold trim
-            y = (v - 0.4) / 0.16
-            zig = abs(((u * 10.0) % 1.0) - 0.5) * 2.0
-            if y < 0.15 or y > 0.85:
-                return ramp(GOLD, 0.4)
-            if abs(abs(y - 0.5) - 0.35 * zig) < 0.09:
-                return ramp(GOLD, 0.15)
-            return mix((72, 130, 46), (26, 50, 18), abs(y - 0.5))
-        return c
-
-    def foot(self, u, v):
-        if v > 0.62:                                               # iron toe cap
-            return ramp(GOLD, 0.3) if v < 0.66 else ramp(IRON, 0.12 + 0.3 * (v - 0.66))
-        return ramp(LEATHER, 0.55 - 0.2 * v)
-
-    def fur(self, u, v):
-        stripe = math.sin(u * math.pi * 16 + 0.8 * math.sin(v * 7))
-        k = 0.66 + 0.2 * stripe - 0.3 * v + 0.08 * math.sin(u * 110 + v * 9)
-        return ramp(FUR, k) if stripe > -0.5 else ramp(LEATHER, 0.28)
-
-    # -- the hammer and odd bits of metal ------------------------------------
-
-    def hammer(self, u, v):
+def paint(region, u, v):
+    if region == 'hammer':
         cheek = min(abs(u - 0.25), abs(u - 0.75))
-        if cheek < 0.09 and 0.2 < v < 0.8:                         # runes glowing like embers
+        if cheek < 0.09 and 0.2 < v < 0.8:               # runes glowing like embers
             x, y = cheek / 0.09, (v - 0.5) / 0.3
             if min(abs(x - abs(y)), abs(abs(y) - 0.5) + (0.0 if x < 0.7 else 1.0)) < 0.13:
-                return ramp(FIRE, 0.9 - 0.3 * abs(y))
-        return ramp(IRON, 0.62 - 0.4 * math.cos(math.pi * (2 * u - 0.5)) ** 2 + 0.15 * edge(v, 0.12))
-
-    def handle(self, u, v):
-        return ramp(WOOD, 0.5 + 0.2 * math.sin(u * 4 * math.pi) * (0.6 + 0.4 * math.sin(v * 25)))
-
-    def grip(self, u, v):
-        return ramp(LEATHER, 0.55 if (u + v * 3.0) % 1.0 < 0.8 else 0.2)
-
-    def gold(self, u, v):
+                return ramp(FIRE, 0.95 - 0.3 * abs(y))
+        return ramp(IRON, 0.62 - 0.4 * math.cos(math.pi * (2 * u - 0.5)) ** 2)
+    if region == 'gold':
         return ramp(GOLD, 0.1 + 0.8 * abs(math.sin(math.pi * (u + 0.25))))
-
-    def iron(self, u, v):
-        return ramp(IRON, 0.15 + 0.7 * v)
-
-    def spike(self, u, v):
+    if region == 'spike':
         return ramp(IRON, 0.1 + 0.8 * abs(math.sin(math.pi * 2 * u)))
+    if region == 'handle':
+        return ramp(WOOD, 0.5 + 0.2 * math.sin(u * 4 * math.pi) * (0.6 + 0.4 * math.sin(v * 25)))
+    if region == 'grip':
+        return ramp(LEATHER, 0.55 if (u + v * 3.0) % 1.0 < 0.8 else 0.15)
+    if region == 'hair':
+        lock = abs(math.sin(math.pi * (u * 4 + 0.3 * math.sin(v * 6))))
+        return ramp(HAIR, 0.3 + 0.35 * lock + 0.2 * (lock > 0.85) * math.sin(v * 9 + u * 20))
+    if region == 'eye':
+        return ramp(FIRE, 1.0 - 1.7 * math.hypot(u - 0.5, (v - 0.5) * 0.8))
+    raise KeyError(region)
 
 
-LIGHT = norm((0.3, 0.0, 1.0))
-
-
-def light_map(model):
-    """Shading per texel, painted from the model: dark in the crevices and
-    underneath, light on top."""
-    geosets = model['geosets']
-    ao = bake.vertex_occlusion(geosets, cell=1.2, rays=16, reach=12.0)[GEO_MAIN]
-    g = geosets[GEO_MAIN]
-    values = []
-    for k, n in zip(ao, g['normals']):
-        top = max(0.0, dot(n, LIGHT))
-        values.append((0.5 + 0.5 * k ** 1.5) * (0.82 + 0.3 * top))
-    return bake.bake(g, values, TEX, [r for name, r in sorted(REGIONS.items()) if name not in SHARED])
-
-
-def paint_texture(model=None):
-    """The 256 x 256 RGBA skin, with the model's shading painted in."""
-    if model is None:
-        model = build_model()
-    light = light_map(model)
-    painter = Painter()
-    pixels = [(0, 0, 0, 255)] * (TEX * TEX)
+def paint_texture():
+    pixels = [(0, 0, 0)] * (TEX * TEX)
     for name, (x0, y0, x1, y1) in REGIONS.items():
-        fn = getattr(painter, name)
-        baked = name not in SHARED
-        w, h = x1 - x0, y1 - y0
         for py in range(y0, y1):
-            v = _clamp((py + 0.5 - y0 - 1.0) / (h - 2))
-            row = py * TEX
+            v = _clamp((py + 0.5 - y0 - 1.0) / (y1 - y0 - 2))
             for px in range(x0, x1):
-                u = _clamp((px + 0.5 - x0 - 1.0) / (w - 2))
-                c = fn(u, v)
-                k = light[row + px] if baked else None
-                if len(c) == 4:
-                    r, g, b, a = c
-                    if k is not None and k < 1.0:
-                        # darken the team colour too: blend more black over it
-                        a0 = a / 255.0
-                        a1 = 1.0 - (1.0 - a0) * k
-                        f = a0 * k / a1 if a1 > 0 else 0.0
-                        r, g, b, a = r * f, g * f, b * f, a1 * 255.0
-                    pixels[row + px] = (int(min(255, max(0, r))), int(min(255, max(0, g))),
-                                        int(min(255, max(0, b))), int(min(255, max(0, a))))
-                else:
-                    if k is not None:
-                        c = (c[0] * k, c[1] * k, c[2] * k)
-                    pixels[row + px] = (int(min(255, max(0, c[0]))), int(min(255, max(0, c[1]))),
-                                        int(min(255, max(0, c[2]))), 255)
+                u = _clamp((px + 0.5 - x0 - 1.0) / (x1 - x0 - 2))
+                pixels[py * TEX + px] = tuple(int(min(255, max(0, c))) for c in paint(name, u, v))
     return pixels
 
 
-# ---------------------------------------------------------------------------
-# animation
-# ---------------------------------------------------------------------------
-
-def _rot(pitch=0.0, roll=0.0, yaw=0.0):
-    return quat_euler(roll=roll, pitch=pitch, yaw=yaw)
-
-
-def pose(**bones):
-    """pose(ThighL=(pitch, roll, yaw), Root=dict(trans=(x, y, z))...)"""
-    out = {}
-    for name, value in bones.items():
-        if isinstance(value, dict):
-            out[name] = value
-        else:
-            pitch, roll, yaw = (tuple(value) + (0.0, 0.0, 0.0))[:3]
-            out[name] = {'rot': _rot(pitch, roll, yaw)}
-    return out
-
-
-def _with(base, **changes):
-    out = dict(base)
-    out.update(pose(**changes))
-    return out
-
-
-def stride(lead, push):
-    """A walking pose: the `lead` leg reaching forward, the other pushing off."""
-    l, p = lead[-1], push[-1]
-    return pose(**{'Thigh' + l: (-28,), 'Shin' + l: (10,), 'Foot' + l: (12,),
-                   'Thigh' + p: (22,), 'Shin' + p: (28,), 'Foot' + p: (-20,),
-                   'Arm' + l: (14,), 'Arm' + p: (-14,), 'Chest': (2, 0, -6 if l == 'L' else 6)})
-
-
-def passing(lift):
-    other = 'R' if lift == 'L' else 'L'
-    return pose(**{'Thigh' + lift: (-14,), 'Shin' + lift: (46,), 'Foot' + lift: (-10,),
-                   'Thigh' + other: (2,), 'Shin' + other: (4,), 'Chest': (3,),
-                   'Root': {'trans': (0.0, 0.0, 2.0)}})
-
-
-READY = pose(Root={'trans': (0.0, 0.0, -4.0)}, Chest=(10,), Head=(-8,),
-             ThighL=(-16,), ShinL=(26,), FootL=(-10,), ThighR=(-6,), ShinR=(22,), FootR=(-16,),
-             ArmR=(-35,), ForeR=(-50,), Hammer=(-40,), ArmL=(-30, 8), ForeL=(-40,))
-
-RAISED = pose(ArmR=(165,), ForeR=(0,), Hammer=(54,), Chest=(-8,), Head=(-15,), ArmL=(-45, 20), ForeL=(-30,))
-
-DEATH = pose(Root={'rot': _rot(-82), 'trans': (6.0, 0.0, -25.0)}, Chest=(-6,), Head=(-20, 0, 25),
-             ArmL=(-10, 50), ArmR=(-20, -50), ForeR=(-20,), Hammer=(60,),
-             ThighL=(60, 6), ShinL=(-20,), ThighR=(48, -6), ShinR=(-10,))
-
-# name, length (ms), looping, move speed, rarity, keyframes [(time, pose)]
-SEQUENCES = [
-    ('Stand - 1', 3000, True, 0, 0, [
-        (0, {}),
-        (1500, pose(Chest={'rot': _rot(2), 'scale': (1.0, 1.02, 1.02)}, Head=(-3,), ShoulderL=(0, 3),
-                    ShoulderR=(0, -3), ArmL=(0, 3), ArmR=(0, -3))),
-        (3000, {}),
-    ]),
-    ('Stand - 2', 3000, True, 0, 0.3, [
-        (0, {}),
-        (900, pose(Head=(0, 0, 28), Chest=(0, 0, 6))),
-        (1500, pose(Head=(-5, 0, 28), Chest=(0, 0, 6), ArmR=(-15,), ForeR=(-25,))),
-        (2300, pose(Head=(0, 0, -22), Chest=(0, 0, -4))),
-        (3000, {}),
-    ]),
-    ('Stand Ready', 1000, True, 0, 0, [
-        (0, READY),
-        (500, _with(READY, Root={'trans': (0.0, 0.0, -5.0)}, Chest=(13,))),
-        (1000, READY),
-    ]),
-    ('Walk', 1000, True, 220, 0, [
-        (0, stride('L', 'R')),
-        (250, passing('R')),
-        (500, stride('R', 'L')),
-        (750, passing('L')),
-        (1000, stride('L', 'R')),
-    ]),
-    ('Attack - 1', 1000, True, 0, 0, [
-        # an overhead smash
-        (0, {}),
-        (250, pose(Chest=(-12, 0, -12), ArmR=(150, -10), ForeR=(-40,), Hammer=(20,), ArmL=(-25,),
-                   ThighL=(-14,), ShinL=(18,), ThighR=(8,), ShinR=(10,))),
-        (400, pose(Root={'trans': (3.0, 0.0, -4.0)}, Chest=(24, 0, 8), ArmR=(-80,), ForeR=(-20,), Hammer=(45,),
-                   ArmL=(-15, 12), ThighL=(-22,), ShinL=(30,), FootL=(-8,), ThighR=(10,), ShinR=(18,))),
-        (650, pose(Root={'trans': (2.0, 0.0, -3.0)}, Chest=(14,), ArmR=(-60,), ForeR=(-15,), Hammer=(35,),
-                   ThighL=(-16,), ShinL=(22,), ThighR=(8,), ShinR=(12,))),
-        (1000, {}),
-    ]),
-    ('Attack - 2', 1000, True, 0, 0, [
-        # a sweeping blow from the right
-        (0, {}),
-        (250, pose(Chest=(0, 0, -45), ArmR=(-20, -65), ForeR=(-30,), Hammer=(-30,), ArmL=(-30,),
-                   ThighL=(-12,), ShinL=(14,))),
-        (420, pose(Chest=(8, 0, 40), ArmR=(-85, -25), ForeR=(-10,), Hammer=(30,), ArmL=(-10,),
-                   ThighL=(-14,), ShinL=(18,), ThighR=(8,))),
-        (650, pose(Chest=(5, 0, 25), ArmR=(-55, -15), Hammer=(10,), ThighL=(-8,), ShinL=(10,))),
-        (1000, {}),
-    ]),
-    ('Spell', 1000, True, 0, 0, [
-        (0, {}),
-        (300, RAISED),
-        (700, RAISED),
-        (1000, {}),
-    ]),
-    ('Spell Throw', 800, True, 0, 0, [
-        (0, {}),
-        (260, pose(Chest=(-12, 0, -20), ArmR=(150,), ForeR=(-40,), Hammer=(20,), ArmL=(-35,))),
-        (400, pose(Chest=(18, 0, 15), ArmR=(-100,), ForeR=(0,), Hammer=(60,), ArmL=(15,),
-                   ThighL=(-16,), ShinL=(20,))),
-        (800, {}),
-    ]),
-    ('Spell Slam', 1000, True, 0, 0, [
-        (0, {}),
-        (300, pose(Root={'trans': (0.0, 0.0, 22.0)}, Chest=(-10,), ArmR=(160,), ForeR=(-20,), Hammer=(40,),
-                   ArmL=(-40, 20), ThighL=(-40,), ShinL=(60,), ThighR=(-36,), ShinR=(56,))),
-        (450, pose(Root={'trans': (4.0, 0.0, -8.0)}, Chest=(30,), ArmR=(-70,), ForeR=(-15,), Hammer=(50,),
-                   ArmL=(-30, 10), ThighL=(-30,), ShinL=(50,), FootL=(-20,), ThighR=(-20,), ShinR=(44,),
-                   FootR=(-24,))),
-        (700, pose(Root={'trans': (2.0, 0.0, -5.0)}, Chest=(20,), ArmR=(-50,), ForeR=(-10,), Hammer=(40,),
-                   ThighL=(-20,), ShinL=(34,), FootL=(-14,), ThighR=(-12,), ShinR=(28,), FootR=(-16,))),
-        (1000, {}),
-    ]),
-    ('Death', 2000, False, 0, 0, [
-        (0, {}),
-        (300, pose(Chest=(-18,), Head=(-25,), ArmL=(0, 30), ArmR=(0, -30), ThighL=(-10,), ShinL=(30,))),
-        (550, pose(Root={'rot': _rot(-30), 'trans': (0.0, 0.0, -10.0)}, Chest=(-10,), ArmL=(0, 45), ArmR=(0, -45),
-                   ThighL=(30,), ShinL=(20,), ThighR=(25,), ShinR=(20,))),
-        (900, DEATH),
-        (1050, _with(DEATH, Root={'rot': _rot(-78), 'trans': (6.0, 0.0, -22.0)})),
-        (1250, DEATH),
-        (2000, DEATH),
-    ]),
-    ('Decay Flesh', 2000, False, 0, 0, [
-        (0, DEATH),
-        (2000, _with(DEATH, Root={'rot': _rot(-82), 'trans': (6.0, 0.0, -45.0)})),
-    ]),
-    ('Decay Bone', 2000, False, 0, 0, [
-        (0, _with(DEATH, Root={'rot': _rot(-82), 'trans': (6.0, 0.0, -45.0)})),
-        (2000, _with(DEATH, Root={'rot': _rot(-82), 'trans': (6.0, 0.0, -70.0)})),
-    ]),
-    ('Stand Victory', 2000, True, 0, 0, [
-        (0, {}),
-        (400, RAISED),
-        (800, _with(RAISED, Root={'trans': (0.0, 0.0, 3.0)}, ArmR=(155,))),
-        (1200, RAISED),
-        (1600, _with(RAISED, Root={'trans': (0.0, 0.0, 3.0)}, ArmR=(155,))),
-        (2000, {}),
-    ]),
-    ('Portrait', 3000, True, 0, 0, [
-        (0, {}),
-        (1500, pose(Head=(-3, 0, 4), Chest={'scale': (1.0, 1.02, 1.02)})),
-        (3000, {}),
-    ]),
-    ('Portrait Talk', 1500, True, 0, 0, [
-        (0, {}),
-        (300, pose(Head=(6,))),
-        (600, pose(Head=(-4, 0, 5))),
-        (900, pose(Head=(5, 0, -4))),
-        (1200, pose(Head=(-3,))),
-        (1500, {}),
-    ]),
-]
-
-IDENTITY = (0.0, 0.0, 0.0, 1.0)
-
-
-def build_animation():
-    sequences = []
-    tracks = {name: {'rot': [], 'trans': [], 'scale': []} for name, _, _ in BONES}
-    start = 0
-    for name, length, looping, speed, rarity, keys in SEQUENCES:
-        start += 100
-        end = start + length
-        sequences.append({'name': name, 'start': start, 'end': end, 'looping': looping,
-                          'move_speed': float(speed), 'rarity': float(rarity)})
-        for bone, _, _ in BONES:
-            for t, frame_pose in keys:
-                p = frame_pose.get(bone, {})
-                tracks[bone]['rot'].append((start + t, p.get('rot', IDENTITY)))
-                tracks[bone]['trans'].append((start + t, p.get('trans', (0.0, 0.0, 0.0))))
-                tracks[bone]['scale'].append((start + t, p.get('scale', (1.0, 1.0, 1.0))))
-        start = end
-    return sequences, tracks
-
-
-def sequence_frame(model, name, fraction=0.0):
-    for s in model['sequences']:
-        if s['name'] == name:
-            return int(s['start'] + (s['end'] - s['start']) * fraction)
-    raise KeyError(name)
-
-
-# ---------------------------------------------------------------------------
-# assembly
-# ---------------------------------------------------------------------------
-
-def build_model():
-    mesh = build_mesh()
-    sequences, tracks = build_animation()
-    bones = []
-    for name, parent, pivot in BONES:
-        t = tracks[name]
-        bone = {'name': name, 'parent': parent, 'pivot': pivot}
-        if any(tuple(v) != IDENTITY for _, v in t['rot']):
-            bone['rotation'] = t['rot']
-        if any(tuple(v) != (0.0, 0.0, 0.0) for _, v in t['trans']):
-            bone['translation'] = t['trans']
-        if any(tuple(v) != (1.0, 1.0, 1.0) for _, v in t['scale']):
-            bone['scaling'] = t['scale']
-        bones.append(bone)
-    grip_r, grip_l = mirror(FIST), FIST
-    hammer_head = add(grip_r, mul(HAMMER_DIR, HAMMER_HEAD))
-    return {
-        'name': 'DarkIronThane',
-        'sequences': sequences,
-        'textures': [{'replaceable': 1}, {'path': TEXTURE_PATH}],
-        'materials': [
-            # the classic unit setup: team colour, with the painted texture blended on top
-            {'layers': [{'texture': 0}, {'texture': 1, 'filter': mdx.FILTER_BLEND}]},
-            {'layers': [{'texture': 1, 'shading': mdx.SHADE_UNSHADED | mdx.SHADE_UNFOGGED}]},
-        ],
-        'geosets': [dict(mesh.geosets[GEO_MAIN], material=0), dict(mesh.geosets[GEO_GLOW], material=1)],
-        'bones': bones,
-        'attachments': [
-            {'name': 'Origin Ref', 'parent': -1, 'pivot': (0.0, 0.0, 0.0)},
-            {'name': 'Chest Ref', 'parent': B['Chest'], 'pivot': (18.0, 0.0, 68.0)},
-            {'name': 'Head Ref', 'parent': B['Head'], 'pivot': (4.0, 0.0, 106.0)},
-            {'name': 'Overhead Ref', 'parent': -1, 'pivot': (0.0, 0.0, 134.0)},
-            {'name': 'Hand Right Ref', 'parent': B['HandR'], 'pivot': grip_r},
-            {'name': 'Hand Left Ref', 'parent': B['HandL'], 'pivot': grip_l},
-            {'name': 'Weapon Ref', 'parent': B['Hammer'], 'pivot': hammer_head},
-            {'name': 'Foot Left Ref', 'parent': B['FootL'], 'pivot': (9.0, 16.4, 1.0)},
-            {'name': 'Foot Right Ref', 'parent': B['FootR'], 'pivot': (9.0, -16.4, 1.0)},
-        ],
-        'collision': [
-            {'name': 'Collision Sphere01', 'parent': B['Root'], 'pivot': (0.0, 0.0, 56.0),
-             'center': (0.0, 0.0, 56.0), 'radius': 52.0},
-        ],
-        'cameras': [
-            {'name': 'Portrait', 'position': (90.0, -30.0, 104.0), 'target': (6.0, 0.0, 91.0),
-             'fov': 0.6, 'far': 1000.0, 'near': 8.0},
-        ],
-    }
-
-
 def build():
-    """Returns ({archive path: bytes}, model, texture, icon)."""
-    from . import raster
-    model = build_model()
-    texture = paint_texture(model)
-    icon = raster.hero_icon(model, texture, TEX, frame=sequence_frame(model, 'Portrait'), **ICON_CAMERA)
-    disabled = raster.disabled_icon(icon)
+    """Returns {archive path: bytes} for the model, its portrait and texture."""
+    model, portrait = build_models()
     return {
-        MODEL_PATH: mdx.write(model),
-        TEXTURE_PATH: image.blp1(texture, TEX, TEX),
-        ICON_PATH: image.blp1(icon, 64, 64, mipmaps=False),
-        DISICON_PATH: image.blp1(disabled, 64, 64, mipmaps=False),
-    }, model, texture, icon
+        MODEL_PATH: model.write(),
+        PORTRAIT_PATH: portrait.write(),
+        TEXTURE_PATH: image.blp1(paint_texture(), TEX, TEX),
+    }
