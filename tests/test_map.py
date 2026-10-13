@@ -269,8 +269,8 @@ class HeroModel(unittest.TestCase):
                 self.assertTrue(0.0 <= u <= 1.0 and 0.0 <= v <= 1.0)
             self.assertLessEqual(len(set(g['bones'])), 255)
             triangles += len(g['triangles'])
-        # a classic unit's polygon budget
-        self.assertLess(triangles, 3000)
+        # the polygon budget of the classic hero models
+        self.assertLess(triangles, 1600)
 
     def test_bones_parent_first(self):
         for i, b in enumerate(self.model['bones']):

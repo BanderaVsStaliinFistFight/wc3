@@ -80,14 +80,16 @@ def _look_at(eye, target):
 
 
 def render(model, texture, tex_size, width, height, eye, target, fov=0.6, frame=None,
-           background=None, team=TEAM_COLOUR):
-    """Renders the model; returns (pixels, coverage mask)."""
+           background=None, team=TEAM_COLOUR, wire=None):
+    """Renders the model; returns (pixels, coverage mask). With wire set to a
+    colour, the edges of the visible triangles are drawn over it."""
     f, r, u = _look_at(eye, target)
     scale = 1.0 / math.tan(fov / 2)
     xf = bone_transforms(model, frame)
     zbuf = [1e30] * (width * height)
     px = list(background) if background else [(0, 0, 0)] * (width * height)
     mask = [False] * (width * height)
+    drawn = []
 
     for gi, g in enumerate(model['geosets']):
         unshaded = gi == 1
@@ -109,6 +111,7 @@ def render(model, texture, tex_size, width, height, eye, target, fov=0.6, frame=
             sy = height / 2 - cy / cz * scale * height / 2
             light = max(0.0, n2[0] * LIGHT[0] + n2[1] * LIGHT[1] + n2[2] * LIGHT[2])
             verts.append((sx, sy, cz, uv, 0.42 + 0.75 * light))
+        drawn.append((verts, g['triangles']))
         for a, bb, c in g['triangles']:
             va, vb, vc = verts[a], verts[bb], verts[c]
             if va is None or vb is None or vc is None:
@@ -147,6 +150,24 @@ def render(model, texture, tex_size, width, height, eye, target, fov=0.6, frame=
                         col = (min(255, int(col[0] * k)), min(255, int(col[1] * k)), min(255, int(col[2] * k)))
                     px[i] = col
                     mask[i] = True
+    if wire:
+        for verts, triangles in drawn:
+            for tri in triangles:
+                vs = [verts[k] for k in tri]
+                if None in vs:
+                    continue
+                va, vb, vc = vs
+                if (vb[0] - va[0]) * (vc[1] - va[1]) - (vb[1] - va[1]) * (vc[0] - va[0]) >= 0:
+                    continue
+                for p, q in ((va, vb), (vb, vc), (vc, va)):
+                    steps = int(max(abs(q[0] - p[0]), abs(q[1] - p[1]))) + 1
+                    for k in range(steps + 1):
+                        t = k / steps
+                        x, y = int(p[0] + (q[0] - p[0]) * t), int(p[1] + (q[1] - p[1]) * t)
+                        if 0 <= x < width and 0 <= y < height:
+                            i = y * width + x
+                            if p[2] + (q[2] - p[2]) * t <= zbuf[i] + 0.6:
+                                px[i] = wire
     return px, mask
 
 
