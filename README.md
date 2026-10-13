@@ -70,8 +70,8 @@ are usually made:
   move down rigidly, so nothing bends.
 - The crown is taken off. The beard and moustache, found through the facial bones of the King's
   portrait model, grow down over the chest.
-- Geoset colours tint the armour dark iron, the skin slate blue and the beard near black.
-- Glowing eyes, a topknot and a warhammer in place of the sword, painted on a small texture of
+- Geoset colours tint the armour dark iron, the skin dark slate and the beard near black.
+- Glowing red eyes, a topknot and a warhammer in place of the sword, painted on a small texture of
   their own.
 - His portrait model gets the same head, with the King's talking animations.
 

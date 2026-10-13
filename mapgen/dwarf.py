@@ -6,9 +6,9 @@ bearded head, skeleton and animations, all textured with the game's own
 skins. On top of that:
 - dwarf proportions: the legs and cape shortened, the body widened
 - the crown taken off and the beard grown down over the chest
-- everything tinted through geoset colours: dark iron armour, slate blue
+- everything tinted through geoset colours: dark iron armour, dark slate
   skin, a near black beard and moustache
-- glowing eyes, a topknot, and a warhammer in place of the sword, painted on
+- glowing red eyes, a topknot, and a warhammer in place of the sword, painted on
   a small texture of their own
 The King's portrait model gets the same head.
 """
@@ -38,7 +38,7 @@ P_ARMOUR, P_HEAD = 0, 1
 
 # colours multiplied over the game's skins (red, green, blue)
 ARMOUR_TINT = (0.48, 0.42, 0.44)       # dark iron
-SKIN_TINT = (0.48, 0.62, 0.98)         # slate blue
+SKIN_TINT = (0.30, 0.36, 0.56)         # dark slate
 HAIR_TINT = (0.22, 0.22, 0.30)         # near black
 CAPE_TINT = (0.85, 0.85, 0.85)
 
@@ -516,6 +516,7 @@ IRON = [(0.0, (196, 194, 202)), (0.18, (124, 120, 128)), (0.42, (40, 37, 42)), (
 GOLD = [(0.0, (255, 246, 196)), (0.2, (238, 196, 92)), (0.45, (164, 104, 30)), (0.6, (88, 50, 14)),
         (0.78, (196, 140, 50)), (0.9, (240, 206, 110)), (1.0, (150, 96, 30))]
 FIRE = [(0.0, (0, 0, 0)), (0.3, (120, 20, 4)), (0.6, (240, 90, 16)), (0.85, (255, 190, 60)), (1.0, (255, 250, 200))]
+RED_GLOW = [(0.0, (0, 0, 0)), (0.3, (110, 0, 0)), (0.6, (230, 16, 6)), (0.85, (255, 60, 30)), (1.0, (255, 160, 130))]
 WOOD = [(0.0, (40, 22, 12)), (0.45, (92, 56, 30)), (0.8, (140, 94, 54)), (1.0, (178, 130, 80))]
 LEATHER = [(0.0, (34, 20, 12)), (0.5, (96, 60, 34)), (1.0, (170, 124, 76))]
 HAIR = [(0.0, (8, 8, 14)), (0.4, (30, 31, 44)), (0.75, (74, 78, 100)), (1.0, (150, 156, 182))]
@@ -541,7 +542,7 @@ def paint(region, u, v):
         lock = abs(math.sin(math.pi * (u * 4 + 0.3 * math.sin(v * 6))))
         return ramp(HAIR, 0.3 + 0.35 * lock + 0.2 * (lock > 0.85) * math.sin(v * 9 + u * 20))
     if region == 'eye':
-        return ramp(FIRE, 1.0 - 1.7 * math.hypot(u - 0.5, (v - 0.5) * 0.8))
+        return ramp(RED_GLOW, 1.0 - 1.7 * math.hypot(u - 0.5, (v - 0.5) * 0.8))
     raise KeyError(region)
 
 
