@@ -66,35 +66,36 @@ GEO_MAIN, GEO_GLOW = 0, 1
 
 BONES = [
     # name, parent, pivot -- the layout of the classic hero skeletons
-    ('Root', -1, (0.0, 0.0, 38.0)),
-    ('Pelvis', 0, (0.0, 0.0, 38.0)),
-    ('Chest', 1, (0.0, 0.0, 46.0)),
-    ('Head', 2, (3.0, 0.0, 77.0)),
-    ('ShoulderL', 2, (0.0, 14.0, 72.0)),
-    ('ArmL', 4, (-1.0, 25.0, 70.0)),
-    ('ForeL', 5, (-3.0, 34.0, 55.0)),
-    ('HandL', 6, (0.8, 39.0, 42.5)),
-    ('ShoulderR', 2, (0.0, -14.0, 72.0)),
-    ('ArmR', 8, (-1.0, -25.0, 70.0)),
-    ('ForeR', 9, (-3.0, -34.0, 55.0)),
-    ('HandR', 10, (0.8, -39.0, 42.5)),
-    ('Hammer', 11, (2.0, -39.8, 36.5)),
-    ('ThighL', 1, (0.0, 10.0, 38.0)),
-    ('ShinL', 13, (3.8, 12.8, 22.0)),
-    ('FootL', 14, (0.8, 15.0, 7.0)),
-    ('ThighR', 1, (0.0, -10.0, 38.0)),
-    ('ShinR', 16, (3.8, -12.8, 22.0)),
-    ('FootR', 17, (0.8, -15.0, 7.0)),
+    ('Root', -1, (0.0, 0.0, 42.0)),
+    ('Pelvis', 0, (0.0, 0.0, 42.0)),
+    ('Chest', 1, (0.0, 0.0, 50.0)),
+    ('Head', 2, (3.0, 0.0, 84.0)),
+    ('ShoulderL', 2, (0.0, 16.0, 80.0)),
+    ('ArmL', 4, (-1.0, 29.0, 80.0)),
+    ('ForeL', 5, (-4.0, 37.0, 62.0)),
+    ('HandL', 6, (0.0, 42.0, 47.0)),
+    ('ShoulderR', 2, (0.0, -16.0, 80.0)),
+    ('ArmR', 8, (-1.0, -29.0, 80.0)),
+    ('ForeR', 9, (-4.0, -37.0, 62.0)),
+    ('HandR', 10, (0.0, -42.0, 47.0)),
+    ('Hammer', 11, (2.2, -43.4, 41.0)),
+    ('ThighL', 1, (0.0, 10.0, 42.0)),
+    ('ShinL', 13, (4.0, 13.0, 23.0)),
+    ('FootL', 14, (0.8, 15.2, 7.5)),
+    ('ThighR', 1, (0.0, -10.0, 42.0)),
+    ('ShinR', 16, (4.0, -13.0, 23.0)),
+    ('FootR', 17, (0.8, -15.2, 7.5)),
 ]
 B = {name: i for i, (name, _, _) in enumerate(BONES)}
 
-FIST = (2.0, 39.8, 36.5)                       # left fist; the right one mirrors it
+FIST = (2.2, 43.4, 41.0)                        # left fist; the right one mirrors it
 HAMMER_DIR = norm((0.52, -0.12, -0.85))         # from the right fist to the hammer head
-HAMMER_HEAD = 24.0
-SHIELD_C = (7.0, 49.5, 44.0)
+HAMMER_HEAD = 27.0
+SHIELD_C = (8.0, 54.0, 50.0)
 SHIELD_N = norm((0.45, 0.89, 0.0))
+SHIELD_R = 19.0
 
-ICON_CAMERA = {'eye': (66.0, -30.0, 92.0), 'target': (8.0, -3.0, 82.0), 'fov': 0.62}
+ICON_CAMERA = {'eye': (70.0, -32.0, 100.0), 'target': (8.0, -3.0, 89.0), 'fov': 0.62}
 
 
 def atlas(region, u, v):
@@ -118,21 +119,22 @@ def _side(name, side):
 # the head
 # ---------------------------------------------------------------------------
 
-HEAD_ANGLES = [0, 12, 30, 60, 95, 135, 180]
+HEAD_ANGLES = [0, 15, 40, 80, 130, 180]
 HEAD = [
-    # height, centre x, radius at each angle (front, nose side, eye, cheek, side, back)
-    (73.5, 4.0, [5.5, 5.6, 6.0, 6.5, 6.5, 6.0, 5.5]),
-    (77.5, 4.5, [10.2, 10.2, 10.2, 10.2, 9.8, 8.6, 7.8]),
-    (81.0, 4.5, [14.2, 11.8, 11.0, 11.2, 10.4, 9.4, 8.8]),    # nose tip, cheeks
-    (84.5, 4.5, [12.4, 11.0, 9.6, 11.0, 10.6, 9.8, 9.2]),     # bridge, eye sockets, cheekbones
-    (87.5, 4.5, [11.2, 11.4, 11.6, 11.2, 10.6, 10.0, 9.4]),   # heavy brow
-    (91.0, 4.0, [10.6, 10.6, 10.6, 10.4, 10.0, 9.6, 9.2]),    # forehead
-    (94.5, 3.5, [8.8, 8.8, 8.8, 8.6, 8.4, 8.2, 8.0]),
-    (97.0, 3.2, [5.6, 5.6, 5.6, 5.5, 5.4, 5.3, 5.2]),
-    (98.3, 3.0, [2.2, 2.2, 2.2, 2.2, 2.2, 2.2, 2.2]),
+    # height, centre x, radius at each angle (front, nose side, eye, cheek, back of the head)
+    (80.0, 4.0, [5.5, 5.6, 6.2, 6.6, 6.0, 5.5]),
+    (84.0, 4.5, [10.4, 10.3, 10.2, 9.9, 8.4, 7.8]),      # mouth, under the moustache
+    (87.5, 4.5, [14.2, 11.6, 11.2, 10.6, 9.2, 8.8]),     # nose tip, cheeks
+    (91.0, 4.5, [12.4, 10.6, 9.8, 10.8, 9.6, 9.2]),      # bridge, eye sockets, cheekbones
+    (94.0, 4.5, [11.2, 11.6, 11.6, 10.8, 9.8, 9.4]),     # heavy brow
+    (97.5, 4.0, [10.6, 10.6, 10.5, 10.2, 9.4, 9.2]),     # forehead
+    (101.0, 3.5, [8.8, 8.8, 8.7, 8.5, 8.1, 8.0]),        # crown
+    (103.5, 3.2, [5.6, 5.6, 5.6, 5.5, 5.3, 5.2]),
+    (104.8, 3.0, [2.2] * 6),
 ]
-HEAD_C = (4.5, 0.0, 86.0)
-HEAD_POINT_ANGLES = [-180, -135, -95, -60, -30, -12, 0, 12, 30, 60, 95, 135]
+Z_MOUTH, Z_NOSE, Z_EYE, Z_BROW, Z_FOREHEAD, Z_CROWN = (HEAD[i][0] for i in range(1, 7))
+HEAD_C = (4.5, 0.0, 92.5)
+HEAD_POINT_ANGLES = [-180, -130, -80, -40, -15, 0, 15, 40, 80, 130]
 
 
 def head_u(angle):
@@ -173,15 +175,14 @@ def head_surface(angle, z, out=0.0):
 
 BEARD = [
     # height, front x, back x, half width
-    (81.0, 12.6, 2.0, 10.8),
-    (77.0, 16.2, 3.4, 12.0),
-    (72.0, 19.6, 7.0, 12.8),
-    (66.0, 21.2, 10.5, 12.4),
-    (59.5, 21.8, 13.0, 10.6),
-    (53.0, 21.4, 14.5, 7.6),
-    (48.0, 20.2, 15.5, 4.0),
+    (87.5, 12.6, 2.0, 10.4),
+    (83.5, 16.2, 3.4, 11.6),
+    (78.5, 19.4, 7.5, 12.2),
+    (72.0, 20.8, 11.0, 11.4),
+    (65.5, 20.6, 13.5, 8.4),
+    (60.5, 19.6, 14.6, 4.6),
 ]
-BEARD_TIP = (19.2, 0.0, 43.5)
+BEARD_TIP = (18.4, 0.0, 56.5)
 
 
 def _beard_half(xf, xb, w):
@@ -243,7 +244,7 @@ def build_mesh():
     m = Builder(2, atlas)
     head = B['Head']
 
-    # -- head
+    # -- head: a faceted skull; the face is mostly painted
     us = [head_u(a) for a in HEAD_POINT_ANGLES]
     m.loft(GEO_MAIN, 'head', [ring((cx, 0.0, z), HEAD_ANGLES, radii) for z, cx, radii in HEAD], head,
            caps=('end',), us=us, smooth=55)
@@ -251,12 +252,13 @@ def build_mesh():
         def s(p, side=side):
             return p if side > 0 else mirror(p)
         # glowing eyes, slanted in a scowl
-        eye = [head_surface(21, 84.8, 0.45), head_surface(31, 86.3, 0.45), head_surface(42, 86.0, 0.45),
-               head_surface(31, 84.5, 0.45)]
+        eye = [head_surface(25, Z_EYE + 0.2, 0.45), head_surface(35, Z_EYE + 1.7, 0.45),
+               head_surface(46, Z_EYE + 1.4, 0.45), head_surface(35, Z_EYE - 0.1, 0.45)]
         m.mesh(GEO_GLOW, 'eye', [s(p) for p in eye], [(0.0, 0.5), (0.5, 0.0), (1.0, 0.5), (0.5, 1.0)], [head] * 4,
-               [[0, 1, 2, 3]], outward=s((0.86, 0.5, 0.0)))
+               [[0, 1, 2, 3]], outward=s((0.8, 0.6, 0.0)))
         # brows: thick wedges in an angry V
-        brow = [(5, 85.8, 0.9), (15, 87.0, 1.2), (27, 88.1, 1.3), (39, 88.7, 1.0), (50, 88.7, 0.4)]
+        brow = [(6, Z_BROW - 1.7, 0.9), (16, Z_BROW - 0.6, 1.2), (28, Z_BROW + 0.4, 1.3), (40, Z_BROW + 1.0, 1.0),
+                (52, Z_BROW + 1.0, 0.4)]
         sections = []
         for k, (a, z, size) in enumerate(brow):
             c = head_surface(a, z, 0.8)
@@ -269,15 +271,15 @@ def build_mesh():
                                                                 (-0.5 * size, -0.9 * size)])])
         m.loft(GEO_MAIN, 'brow', sections, head, caps=('start', 'end'), smooth=40)
         # ears
-        base = [head_surface(86, 84.0, -0.4), head_surface(102, 84.6, -0.4), head_surface(100, 89.8, -0.4),
-                head_surface(86, 88.8, -0.4)]
-        tip = add(head_surface(100, 88.2, 3.6), (-1.2, 0.0, 0.6))
+        base = [head_surface(86, Z_NOSE + 3.0, -0.4), head_surface(102, Z_NOSE + 3.6, -0.4),
+                head_surface(100, Z_NOSE + 8.8, -0.4), head_surface(86, Z_NOSE + 7.8, -0.4)]
+        tip = add(head_surface(100, Z_NOSE + 7.2, 3.6), (-1.2, 0.0, 0.6))
         pts = [s(p) for p in base + [tip]]
         m.mesh(GEO_MAIN, 'ear', pts, [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0), (0.5, 0.5)], [head] * 5,
                [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4], [0, 3, 2, 1]], smooth=35)
         # a long drooping moustache lying on the beard
-        must = [(1.0, 78.8, 1.2, 1.6), (4.6, 77.4, 1.5, 2.4), (8.4, 73.4, 1.6, 2.6), (10.4, 67.2, 1.5, 2.4),
-                (10.0, 61.2, 1.2, 1.8), (8.8, 56.2, 0.15, 0.2)]
+        must = [(1.0, Z_MOUTH + 1.3, 1.2, 1.6), (4.4, Z_MOUTH - 0.1, 1.6, 2.5), (7.8, Z_MOUTH - 4.0, 1.7, 2.7),
+                (9.0, Z_MOUTH - 10.0, 1.6, 2.5), (7.8, Z_MOUTH - 15.6, 1.3, 1.9), (6.4, Z_MOUTH - 20.6, 0.15, 0.2)]
         path = [(17.6 if k == 0 else beard_front(y, z) + 0.8 * t, y, z) for k, (y, z, t, _) in enumerate(must)]
         sections = []
         for k, (c, (_, _, t, w)) in enumerate(zip(path, must)):
@@ -285,72 +287,69 @@ def build_mesh():
             sections.append([s(p) for p in section(c, ax, ay, [(t, 0.0), (0.0, w), (-0.7 * t, 0.0), (0.0, -w)])])
         m.loft(GEO_MAIN, 'moustache', sections, head, caps=('start',), smooth=60)
 
-    # -- the beard: a great wedge from the jaw to the belt
+    # -- the beard: a great wedge from the jaw to the chest
     sections = [beard_section(*b) for b in BEARD] + [[BEARD_TIP] * 10]
     m.loft(GEO_MAIN, 'beard', sections, head, caps=('start',), smooth=55)
 
     # -- topknot, bound with a gold ring
-    knot = [(2.6, 0.0, 98.6), (1.4, 0.0, 103.0), (-1.4, 0.0, 106.6), (-5.6, 0.0, 107.6), (-9.6, 0.0, 105.0),
-            (-11.8, 0.0, 100.4)]
+    knot = [(2.6, 0.0, 105.1), (1.4, 0.0, 109.5), (-1.4, 0.0, 113.1), (-5.6, 0.0, 114.1), (-9.6, 0.0, 111.5),
+            (-11.8, 0.0, 106.9)]
     radii = [(3.6, 3.2), (3.0, 2.7), (3.2, 2.9), (2.8, 2.5), (1.8, 1.6), (0.15, 0.15)]
     m.loft(GEO_MAIN, 'topknot', path_sections(knot, radii, 6, hint=(0.0, 1.0, 0.0)), head, smooth=60)
-    m.loft(GEO_MAIN, 'gold', path_sections([(2.4, 0.0, 99.8), (2.0, 0.0, 101.8)], [(4.0, 4.0), (3.7, 3.7)], 8,
+    m.loft(GEO_MAIN, 'gold', path_sections([(2.4, 0.0, 106.3), (2.0, 0.0, 108.3)], [(4.0, 4.0), (3.7, 3.7)], 6,
                                            hint=(0.0, 1.0, 0.0)), head, smooth=60)
 
-    # -- torso: a barrel chest in a dark iron breastplate
-    angles = [0, 25, 55, 90, 125, 155, 180]
-    torso = [(42.0, 0.5, [13.0, 13.2, 14.6, 16.4, 13.4, 11.2, 10.8]),
-             (50.0, 1.5, [15.6, 15.8, 17.0, 19.0, 15.0, 12.4, 12.0]),
-             (60.0, 2.0, [16.6, 17.2, 19.8, 22.0, 16.6, 13.4, 13.0]),
-             (68.0, 1.5, [14.8, 15.8, 19.8, 22.6, 16.6, 13.6, 13.2]),
-             (74.0, 1.0, [10.6, 11.4, 13.6, 15.6, 12.8, 10.6, 10.2]),
-             (79.0, 2.0, [6.6, 6.6, 6.8, 7.2, 6.8, 6.4, 6.2])]
+    # -- torso: a broad barrel chest in a dark iron breastplate
+    angles = [0, 30, 70, 110, 150, 180]
+    torso = [(46.0, 0.5, [14.0, 14.6, 17.0, 15.4, 12.2, 11.6]),
+             (56.0, 1.5, [16.4, 17.4, 20.4, 18.0, 13.6, 12.8]),
+             (66.0, 2.0, [17.4, 19.0, 23.6, 20.6, 14.6, 13.8]),
+             (75.0, 1.5, [15.6, 17.6, 24.0, 20.8, 14.4, 13.6]),
+             (81.0, 1.0, [11.0, 12.4, 15.6, 13.6, 11.0, 10.4]),
+             (85.5, 2.0, [6.6, 6.7, 7.0, 6.8, 6.4, 6.2])]
     m.loft(GEO_MAIN, 'torso', [ring((cx, 0.0, z), angles, r) for z, cx, r in torso],
-           [_bones('Pelvis', 'Chest')] + [B['Chest']] * 5, smooth=50)
+           [_bones('Pelvis', 'Chest')] + [B['Chest']] * 5, smooth=40)
 
     # -- belt with a big buckle and an ember in it
-    belt = [(38.0, 0.5, [14.4, 14.6, 16.0, 17.8, 14.8, 12.4, 12.0]),
-            (42.2, 0.8, [15.4, 15.6, 17.0, 18.8, 15.6, 13.2, 12.8]),
-            (46.4, 1.2, [16.2, 16.4, 17.6, 19.6, 16.0, 13.4, 13.0])]
+    belt = [(41.5, 0.5, [15.0, 15.6, 18.0, 16.2, 12.8, 12.2]),
+            (45.8, 0.8, [16.0, 16.6, 19.0, 17.0, 13.6, 13.0]),
+            (50.0, 1.2, [16.8, 17.4, 19.6, 17.4, 13.8, 13.2])]
     pelvis = B['Pelvis']
-    m.loft(GEO_MAIN, 'belt', [ring((cx, 0.0, z), angles, r) for z, cx, r in belt], pelvis, smooth=50)
-    m.loft(GEO_MAIN, 'buckle', [section((16.0, 0.0, 42.2), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), octagon(5.0, 4.4)),
-                                section((18.6, 0.0, 42.2), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), octagon(4.0, 3.4))],
+    m.loft(GEO_MAIN, 'belt', [ring((cx, 0.0, z), angles, r) for z, cx, r in belt], pelvis, smooth=40)
+    m.loft(GEO_MAIN, 'buckle', [section((17.0, 0.0, 45.8), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), octagon(5.4, 4.6)),
+                                section((19.6, 0.0, 45.8), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), octagon(4.4, 3.6))],
            pelvis, caps=('end',), smooth=40)
-    gem = [(18.7, 0.0, 44.4), (18.7, 1.7, 42.2), (18.7, 0.0, 40.0), (18.7, -1.7, 42.2), (20.2, 0.0, 42.2)]
+    gem = [(19.7, 0.0, 48.0), (19.7, 1.8, 45.8), (19.7, 0.0, 43.6), (19.7, -1.8, 45.8), (21.3, 0.0, 45.8)]
     m.mesh(GEO_GLOW, 'gem', gem, [(0.5, 0.0), (1.0, 0.5), (0.5, 1.0), (0.0, 0.5), (0.5, 0.5)], [pelvis] * 5,
            [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], smooth=30)
 
     # -- hips, the team coloured tabard and the leg plates
     def hip_bones(p):
-        if p[2] > 33.0 or abs(p[1]) < 4.0:
+        if p[2] > 37.0 or abs(p[1]) < 4.0:
             return pelvis
         return _bones('Pelvis', 'ThighL' if p[1] > 0 else 'ThighR')
-    hips = [(38.5, 0.5, [14.0, 14.2, 15.6, 17.2, 14.4, 12.0, 11.6]),
-            (34.0, 0.3, [13.0, 13.2, 14.6, 16.4, 13.8, 11.6, 11.2]),
-            (29.5, 0.0, [8.0, 8.6, 10.4, 12.0, 10.0, 8.4, 8.0]),
-            (27.0, 0.0, [3.0] * 7)]
-    m.loft(GEO_MAIN, 'hips', [ring((cx, 0.0, z), angles, r) for z, cx, r in hips], hip_bones, smooth=50)
+    hips = [(42.0, 0.5, [15.0, 15.6, 18.0, 16.2, 12.8, 12.2]),
+            (37.0, 0.3, [14.0, 14.6, 16.6, 15.0, 12.4, 11.8]),
+            (32.0, 0.0, [8.6, 9.4, 12.4, 11.0, 9.0, 8.4]),
+            (29.0, 0.0, [3.0] * 6)]
+    m.loft(GEO_MAIN, 'hips', [ring((cx, 0.0, z), angles, r) for z, cx, r in hips], hip_bones, smooth=40)
     for front, region in ((1, 'cloth'), (-1, 'backcloth')):
-        xs = [16.4, 15.6, 14.6, 13.8] if front > 0 else [-12.4, -11.8, -11.0, -10.4]
+        xs = [17.4, 16.6, 15.6, 14.8] if front > 0 else [-13.0, -12.4, -11.6, -11.0]
         rows = []
-        for x, z, w in zip(xs, [38.6, 32.0, 25.6, 19.6], [7.2, 6.8, 6.4, 5.6]):
+        for x, z, w in zip(xs, [42.0, 35.0, 28.0, 21.0], [7.4, 7.0, 6.6, 6.0]):
             rows.append([(x, -w, z), (x + front * 1.0, 0.0, z), (x, w, z)])
         m.sheet(GEO_MAIN, region, rows, pelvis, outward=(float(front), 0.0, 0.0), two_sided=True, thickness=0.5,
                 smooth=40)
     for side in (1, -1):
         thigh = B[_side('ThighL', side)]
         rows = []
-        for z, r in ((39.0, 17.0), (33.5, 18.4), (28.0, 19.6)):
+        for z, r in ((42.5, 18.6), (36.5, 19.8), (30.5, 21.0)):
             rows.append([(0.5 + r * math.cos(math.radians(a)), side * r * math.sin(math.radians(a)), z)
                          for a in (35, 60, 85)])
         m.sheet(GEO_MAIN, 'tasset', rows, [_bones('Pelvis', _side('ThighL', side)), thigh, thigh],
                 outward=(0.5, side * 0.87, 0.0), two_sided=True, thickness=0.6, smooth=40)
 
     for side in (1, -1):
-        def s(p, side=side):
-            return p if side > 0 else mirror(p)
-
         def bone(name, side=side):
             return B[_side(name, side)]
 
@@ -362,32 +361,33 @@ def build_mesh():
 
         # -- legs: leather breeches, knee guards, fur topped boots
         m.loft(GEO_MAIN, 'thigh', place(path_sections(
-            [(0.0, 10.0, 39.0), (1.6, 11.6, 31.0), (3.8, 12.8, 23.0)], [(9.4, 8.8), (9.6, 9.0), (8.0, 7.6)], 8)),
-            [blend('Pelvis', 'ThighL'), bone('ThighL'), blend('ThighL', 'ShinL')], smooth=55)
+            [(0.0, 10.0, 43.0), (1.8, 11.8, 33.0), (4.0, 13.0, 24.0)], [(10.0, 9.4), (10.2, 9.6), (8.4, 8.0)], 6,
+            phase=math.pi / 6)),
+            [blend('Pelvis', 'ThighL'), bone('ThighL'), blend('ThighL', 'ShinL')], smooth=40)
         m.loft(GEO_MAIN, 'knee', place([
-            section((10.8, 12.9, 22.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), octagon(4.6, 5.2)),
-            section((13.6, 12.9, 21.4), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), octagon(2.6, 3.2))]),
+            section((12.2, 13.0, 23.5), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), octagon(4.8, 5.4)),
+            section((15.0, 13.0, 22.8), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0), octagon(2.8, 3.4))]),
             bone('ShinL'), caps=('end',), smooth=40)
         m.loft(GEO_MAIN, 'boot', place(path_sections(
-            [(4.0, 13.0, 23.0), (3.4, 13.6, 18.5), (2.0, 14.4, 13.0), (0.8, 15.0, 8.0)],
-            [(7.6, 7.2), (9.2, 8.8), (7.8, 7.4), (8.0, 7.6)], 8)), bone('ShinL'), smooth=55)
+            [(4.2, 13.2, 24.0), (3.4, 13.8, 19.0), (2.0, 14.6, 13.5), (0.8, 15.2, 8.0)],
+            [(8.0, 7.6), (9.6, 9.2), (8.2, 7.8), (8.4, 8.0)], 6, phase=math.pi / 6)), bone('ShinL'), smooth=40)
         m.loft(GEO_MAIN, 'fur', place(path_sections(
-            [(3.6, 13.5, 20.6), (3.2, 13.8, 16.2)], [(9.8, 9.4), (10.2, 9.8)], 10, shape=zigzag(1))),
+            [(3.6, 13.6, 21.6), (3.2, 13.9, 17.2)], [(10.2, 9.8), (10.6, 10.2)], 8, shape=zigzag(1))),
             bone('ShinL'), smooth=60)
-        foot = [(-5.4, 15.4, 6.0, 4.8, 4.6), (1.0, 15.8, 7.4, 6.0, 4.6), (9.0, 16.4, 7.6, 3.4, 3.6),
-                (16.0, 17.0, 6.8, 2.8, 3.2), (21.5, 17.5, 4.2, 2.2, 3.0)]
+        foot = [(-6.0, 15.4, 6.2, 5.0, 4.8), (1.0, 15.8, 7.8, 6.2, 4.8), (9.5, 16.4, 8.0, 3.6, 3.8),
+                (17.0, 17.0, 7.2, 3.0, 3.4), (23.0, 17.5, 4.4, 2.4, 3.2)]
         sections = []
         for x, yc, w, top, zc in foot:
             pts = [(0.0, top), (-0.65 * w, 0.8 * top), (-w, 0.1 * top), (-0.8 * w, -zc), (0.8 * w, -zc),
                    (w, 0.1 * top), (0.65 * w, 0.8 * top)]
             sections.append([(x, yc + a, zc + b) for a, b in pts])
-        sections.append([(24.2, 17.6, 3.4)] * 7)
-        m.loft(GEO_MAIN, 'foot', place(sections), bone('FootL'), caps=('start',), smooth=45)
+        sections.append([(26.0, 17.6, 3.6)] * 7)
+        m.loft(GEO_MAIN, 'foot', place(sections), bone('FootL'), caps=('start',), smooth=40)
 
         # -- shoulders: great angular pauldrons with spikes
-        pauldron = [(13.0, -1.0, 74.5, 9.0, 9.0, 3.5, -2.5, 1.8), (19.5, -1.0, 74.5, 13.6, 13.6, 7.8, -5.0, 2.4),
-                    (28.5, -1.5, 72.6, 14.8, 14.2, 8.6, -8.4, 2.4), (36.0, -2.0, 68.8, 12.8, 12.2, 6.2, -9.8, 2.4),
-                    (41.0, -2.6, 64.6, 7.6, 7.2, 3.2, -7.4, 1.6)]
+        pauldron = [(16.0, -1.0, 83.5, 10.0, 10.0, 4.0, -3.0, 2.0), (23.0, -1.0, 83.5, 15.0, 15.0, 9.0, -5.5, 2.6),
+                    (33.0, -1.5, 81.0, 16.0, 15.4, 9.6, -9.4, 2.6), (41.5, -2.0, 76.5, 13.6, 13.0, 6.8, -10.8, 2.6),
+                    (47.0, -2.6, 71.5, 8.0, 7.6, 3.4, -8.0, 1.8)]
         sections = []
         for y, cx, cz, fx, bx, zt, zb, t in pauldron:
             outer = [(fx, zb), (fx * 0.85, zt * 0.55), (fx * 0.45, zt * 0.95), (0.0, zt), (-bx * 0.45, zt * 0.95),
@@ -395,9 +395,9 @@ def build_mesh():
             inner = [(-bx + t, zb + t * 0.5), (-(bx - t) * 0.8, (zt - t) * 0.6), (0.0, zt - t),
                      ((fx - t) * 0.8, (zt - t) * 0.6), (fx - t, zb + t * 0.5)]
             sections.append([(cx + a, y, cz + b) for a, b in outer + inner])
-        m.loft(GEO_MAIN, 'pauldron', place(sections), bone('ShoulderL'), caps=('start', 'end'), smooth=42,
+        m.loft(GEO_MAIN, 'pauldron', place(sections), bone('ShoulderL'), caps=('start', 'end'), smooth=38,
                us=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.68, 0.76, 0.84, 0.92, 0.97])
-        spikes = (((-1.5, 28.5, 80.4), (-2.8, 33.4, 90.5), 2.6), ((6.0, 24.0, 79.2), (9.0, 27.6, 85.6), 1.6))
+        spikes = (((-1.5, 33.0, 89.6), (-3.0, 38.5, 101.0), 3.0), ((6.5, 28.0, 88.4), (9.6, 32.0, 95.4), 1.8))
         for base, tip, size in spikes:
             mid = lerp(base, tip, 0.45)
             secs = path_sections([base, mid, tip], [(size, size), (size * 0.55, size * 0.55), (0.05, 0.05)], 4,
@@ -406,29 +406,30 @@ def build_mesh():
 
         # -- bare muscled arms, iron gauntlets, big fists
         m.loft(GEO_MAIN, 'arm', place(path_sections(
-            [(-1.0, 25.0, 71.0), (-1.6, 29.0, 64.0), (-2.6, 32.4, 57.5), (-3.0, 33.8, 54.0)],
-            [(8.0, 7.4), (8.8, 8.2), (7.2, 6.8), (6.6, 6.4)], 8)),
-            [bone('ArmL'), bone('ArmL'), bone('ArmL'), blend('ArmL', 'ForeL')], smooth=55)
+            [(-1.0, 29.0, 80.0), (-2.0, 33.5, 71.0), (-3.4, 36.4, 64.0), (-4.0, 37.2, 60.5)],
+            [(9.0, 8.4), (9.8, 9.2), (8.2, 7.8), (7.6, 7.2)], 8)),
+            [bone('ArmL'), bone('ArmL'), bone('ArmL'), blend('ArmL', 'ForeL')], smooth=50)
         m.loft(GEO_MAIN, 'fur', place(path_sections(
-            [(-3.0, 34.0, 56.6), (-2.6, 34.6, 51.4)], [(8.2, 7.8), (8.8, 8.4)], 10, shape=zigzag(1))),
+            [(-4.0, 37.2, 63.2), (-3.6, 37.8, 58.0)], [(9.2, 8.8), (9.8, 9.4)], 10, shape=zigzag(1))),
             bone('ForeL'), smooth=60)
         m.loft(GEO_MAIN, 'gauntlet', place(path_sections(
-            [(-2.8, 34.4, 53.0), (-1.4, 36.2, 48.0), (0.6, 38.6, 42.0)], [(7.0, 6.6), (7.8, 7.4), (9.8, 9.2)], 8)),
-            bone('ForeL'), smooth=45)
+            [(-3.8, 37.6, 60.0), (-2.2, 39.6, 54.0), (0.0, 42.0, 47.0)], [(8.0, 7.6), (9.0, 8.6), (11.4, 10.8)], 8)),
+            bone('ForeL'), smooth=40)
         fx, fy, fz = FIST
         m.loft(GEO_MAIN, 'hand', place(path_sections(
-            [(0.8, 39.0, 42.5), (fx, fy, fz), (2.6, 40.2, 31.0)], [(5.8, 5.0), (7.4, 5.8), (6.0, 4.8)], 8)),
-            bone('HandL'), caps=('end',), smooth=55)
+            [(0.4, 42.4, 47.5), (fx, fy, fz), (2.8, 43.8, 35.0)], [(6.6, 5.8), (8.4, 6.6), (6.8, 5.6)], 8)),
+            bone('HandL'), caps=('end',), smooth=50)
         m.loft(GEO_MAIN, 'thumb', place(path_sections(
-            [(6.6, 34.4, 39.0), (9.6, 35.6, 36.8), (10.6, 38.2, 35.2)], [(2.3, 2.3), (2.0, 2.0), (1.3, 1.3)], 5,
+            [(7.4, 37.4, 43.6), (10.8, 38.8, 41.2), (12.0, 41.6, 39.4)], [(2.6, 2.6), (2.3, 2.3), (1.5, 1.5)], 5,
             hint=(0.0, 0.0, 1.0))), bone('HandL'), caps=('end',), smooth=60)
 
     # -- the round shield on the left forearm
     fore = B['ForeL']
     up = (0.0, 0.0, 1.0)
     across = cross(SHIELD_N, up)
-    rings = [(0.0, -1.2), (15.6, -1.2), (17.4, -0.6), (17.4, 0.8), (15.8, 1.4), (13.2, 2.4), (5.2, 3.6), (3.6, 5.4),
-             (0.0, 9.4)]
+    R = SHIELD_R
+    rings = [(0.0, -1.3), (R - 1.6, -1.3), (R, -0.7), (R, 0.9), (R - 1.8, 1.5), (R - 4.6, 2.6), (5.8, 4.0),
+             (4.0, 6.0), (0.0, 10.4)]
     sections = []
     for r, h in rings:
         sec = []
@@ -449,18 +450,18 @@ def build_mesh():
 
     def along(c, axis, offsets_sizes, a_axis, b_axis):
         return [section(add(c, mul(axis, o)), a_axis, b_axis, octagon(sa, sb)) for o, sa, sb in offsets_sizes]
-    m.loft(GEO_MAIN, 'handle', path_sections([add(grip, mul(d, -12.0)), head_c], [(1.9, 1.9), (1.9, 1.9)], 6,
+    m.loft(GEO_MAIN, 'handle', path_sections([add(grip, mul(d, -13.0)), head_c], [(2.1, 2.1), (2.1, 2.1)], 6,
                                              hint=h), hb, smooth=60)
-    m.loft(GEO_MAIN, 'grip', path_sections([add(grip, mul(d, -11.0)), add(grip, mul(d, -5.5))],
-                                           [(2.3, 2.3), (2.3, 2.3)], 6, hint=h), hb, smooth=60)
-    m.loft(GEO_MAIN, 'gold', along(grip, d, [(-12.2, 2.8, 2.8), (-14.2, 2.0, 2.0)], h, s), hb,
+    m.loft(GEO_MAIN, 'grip', path_sections([add(grip, mul(d, -12.0)), add(grip, mul(d, -6.0))],
+                                           [(2.5, 2.5), (2.5, 2.5)], 6, hint=h), hb, smooth=60)
+    m.loft(GEO_MAIN, 'gold', along(grip, d, [(-13.2, 3.1, 3.1), (-15.4, 2.2, 2.2)], h, s), hb,
            caps=('start', 'end'), smooth=40)
-    m.loft(GEO_MAIN, 'hammer', along(head_c, h, [(-11.0, 4.6, 4.6), (-9.4, 5.6, 5.6), (9.4, 5.6, 5.6),
-                                                 (11.0, 4.6, 4.6)], d, s), hb, caps=('start', 'end'), smooth=40)
-    for o in (-7.0, 7.0):
-        m.loft(GEO_MAIN, 'gold', along(head_c, h, [(o - 0.9, 6.1, 6.1), (o + 0.9, 6.1, 6.1)], d, s), hb, smooth=40)
-    spike = [add(head_c, mul(h, 10.6)), add(head_c, mul(h, 14.5)), add(head_c, mul(h, 18.5))]
-    m.loft(GEO_MAIN, 'spike', path_sections(spike, [(3.4, 3.4), (2.0, 2.0), (0.05, 0.05)], 4, hint=d,
+    m.loft(GEO_MAIN, 'hammer', along(head_c, h, [(-12.5, 5.2, 5.2), (-10.6, 6.4, 6.4), (10.6, 6.4, 6.4),
+                                                 (12.5, 5.2, 5.2)], d, s), hb, caps=('start', 'end'), smooth=40)
+    for o in (-8.0, 8.0):
+        m.loft(GEO_MAIN, 'gold', along(head_c, h, [(o - 1.0, 6.9, 6.9), (o + 1.0, 6.9, 6.9)], d, s), hb, smooth=40)
+    spike = [add(head_c, mul(h, 12.0)), add(head_c, mul(h, 16.5)), add(head_c, mul(h, 21.0))]
+    m.loft(GEO_MAIN, 'spike', path_sections(spike, [(3.8, 3.8), (2.2, 2.2), (0.05, 0.05)], 4, hint=d,
                                             phase=math.pi / 4), hb, smooth=30)
     return m
 
@@ -534,20 +535,22 @@ class Painter:
         a = head_angle(u)
         aa = abs(a)
         z = HEAD[0][0] + (HEAD[-1][0] - HEAD[0][0]) * v
-        k = 0.56 + 0.12 * math.cos(math.radians(a)) + 0.12 * smooth(88, 99, z) - 0.12 * smooth(84, 76, z)
-        k += 0.28 * gauss(z - 94.5, a, 2.2, 40)                     # shine on the bald crown
-        k += 0.18 * gauss(a, z - 82.5, 6, 3.0)                      # nose
-        k += 0.14 * gauss(aa - 45, z - 83.0, 12, 2.4)               # cheekbones
-        k += 0.12 * gauss(aa - 22, z - 87.8, 16, 1.2)               # brow ridge
-        k -= 0.4 * gauss(aa - 31, z - 85.3, 11, 1.7)                # sockets
-        k -= 0.3 * gauss(aa - 8, z - 79.6, 3, 0.8)                  # nostrils
-        for wz in (90.2, 91.8):                                     # furrowed forehead
+        k = 0.56 + 0.12 * math.cos(math.radians(a)) + 0.12 * smooth(Z_BROW, Z_CROWN + 4, z)
+        k -= 0.12 * smooth(Z_NOSE - 3.5, Z_MOUTH - 4, z)
+        k += 0.28 * gauss(z - Z_CROWN, a, 2.2, 40)                  # shine on the bald crown
+        k += 0.18 * gauss(a, z - Z_NOSE - 1.5, 6, 3.0)              # nose
+        k += 0.14 * gauss(aa - 55, z - Z_NOSE - 2.0, 12, 2.4)       # cheekbones
+        k += 0.12 * gauss(aa - 25, z - Z_BROW - 0.3, 16, 1.2)       # brow ridge
+        k -= 0.4 * gauss(aa - 35, z - Z_EYE - 0.8, 11, 1.7)         # sockets
+        k -= 0.3 * gauss(aa - 9, z - Z_NOSE + 1.4, 3, 0.8)          # nostrils
+        for wz in (Z_FOREHEAD - 0.8, Z_FOREHEAD + 0.8):             # furrowed forehead
             k -= 0.22 * gauss(z - wz - 0.012 * aa, 0, 0.35, 1) * smooth(42, 15, aa)
-        k -= 0.25 * gauss(aa - 2.5, z - 87.4, 1.6, 1.4)             # frown
+        k -= 0.25 * gauss(aa - 2.5, z - Z_BROW + 0.1, 1.6, 1.4)     # frown
         c = ramp(SKIN, k)
-        c = mix(c, (c[0] * 1.15 + 14, c[1] * 0.92, c[2] * 0.94), 0.55 * gauss(aa - 30, z - 81.5, 16, 2.5))
-        c = mix(c, (255, 130, 40), 0.5 * gauss(aa - 31, z - 85.4, 9, 1.4))       # eye glow on the sockets
-        hair = max(smooth(79.8, 78.0, z), smooth(66, 80, aa) * smooth(90, 87, z))
+        c = mix(c, (c[0] * 1.15 + 14, c[1] * 0.92, c[2] * 0.94), 0.55 * gauss(aa - 32, z - Z_NOSE - 0.5, 16, 2.5))
+        c = mix(c, (255, 130, 40), 0.5 * gauss(aa - 35, z - Z_EYE - 0.9, 9, 1.4))   # eye glow on the sockets
+        hair = max(smooth(Z_MOUTH + 2.3, Z_MOUTH + 0.5, z),
+                   smooth(66, 80, aa) * smooth(Z_FOREHEAD - 1, Z_BROW - 0.5, z))
         return mix(c, (22, 22, 34), 0.9 * hair)
 
     def ear(self, u, v):
@@ -616,16 +619,16 @@ class Painter:
             return ramp(GOLD, 0.2 + 2.5 * (v - 0.86))
         if v < 0.05:
             return ramp(IRON, 0.5)
-        if front > 0.3:                                            # breastplate
-            k = 0.62 - 0.35 * front + 0.15 * smooth(0.3, 0.8, v)
-            if abs(u - 0.5) < 0.01:
+        if front > 0.3:                                            # breastplate, catching the light
+            if abs(u - 0.5) < 0.012:
                 return ramp(GOLD, 0.25)
-            if abs(v - 0.56 + 0.4 * abs(u - 0.5)) < 0.012:
+            if abs(v - 0.56 + 0.4 * abs(u - 0.5)) < 0.014:
                 return ramp(GOLD, 0.3)
-            return ramp(IRON, k)
-        if abs(((v * 7.0) % 1.0) - 0.5) > 0.44:                    # lames on the back
+            return ramp(IRON, 0.08 + 0.3 * (1 - front) + 0.12 * (1 - v))
+        lame = (v * 7.0) % 1.0                                     # overlapping plates on the back
+        if lame < 0.08:
             return DARK
-        return ramp(IRON, 0.62 - 0.2 * front + 0.08 * ((v * 7.0) % 1.0))
+        return ramp(IRON, 0.12 + 0.3 * lame + 0.1 * (1 - front))
 
     def pauldron(self, u, v):
         if u > 0.62:                                               # leather lining
@@ -669,7 +672,7 @@ class Painter:
             return team(0.2 + 0.3 * (1 - front) / 2)
         if abs(v - 0.4) < 0.02 or abs(v - 0.6) < 0.02:
             return ramp(GOLD, 0.3)
-        return ramp(IRON, 0.62 - 0.32 * front + 0.1 * v)
+        return ramp(IRON, 0.1 + 0.3 * (1 - front) / 2 + 0.15 * v)
 
     def belt(self, u, v):
         cell = (u * 14.0) % 1.0
@@ -710,7 +713,7 @@ class Painter:
         return ramp(LEATHER, k)
 
     def knee(self, u, v):
-        return ramp(GOLD, 0.3) if v < 0.12 else ramp(IRON, 0.15 + 0.6 * v)
+        return ramp(GOLD, 0.3) if v < 0.12 else ramp(IRON, 0.1 + 0.3 * v)
 
     def boot(self, u, v):
         front = math.cos(2 * math.pi * (u - 0.5))
@@ -727,7 +730,7 @@ class Painter:
 
     def foot(self, u, v):
         if v > 0.62:                                               # iron toe cap
-            return ramp(GOLD, 0.3) if v < 0.66 else ramp(IRON, 0.3 + 0.4 * (v - 0.66))
+            return ramp(GOLD, 0.3) if v < 0.66 else ramp(IRON, 0.12 + 0.3 * (v - 0.66))
         return ramp(LEATHER, 0.55 - 0.2 * v)
 
     def fur(self, u, v):
@@ -1039,21 +1042,21 @@ def build_model():
         'bones': bones,
         'attachments': [
             {'name': 'Origin Ref', 'parent': -1, 'pivot': (0.0, 0.0, 0.0)},
-            {'name': 'Chest Ref', 'parent': B['Chest'], 'pivot': (16.0, 0.0, 62.0)},
-            {'name': 'Head Ref', 'parent': B['Head'], 'pivot': (4.0, 0.0, 98.0)},
-            {'name': 'Overhead Ref', 'parent': -1, 'pivot': (0.0, 0.0, 124.0)},
+            {'name': 'Chest Ref', 'parent': B['Chest'], 'pivot': (18.0, 0.0, 68.0)},
+            {'name': 'Head Ref', 'parent': B['Head'], 'pivot': (4.0, 0.0, 106.0)},
+            {'name': 'Overhead Ref', 'parent': -1, 'pivot': (0.0, 0.0, 134.0)},
             {'name': 'Hand Right Ref', 'parent': B['HandR'], 'pivot': grip_r},
             {'name': 'Hand Left Ref', 'parent': B['HandL'], 'pivot': grip_l},
             {'name': 'Weapon Ref', 'parent': B['Hammer'], 'pivot': hammer_head},
-            {'name': 'Foot Left Ref', 'parent': B['FootL'], 'pivot': (8.0, 16.4, 1.0)},
-            {'name': 'Foot Right Ref', 'parent': B['FootR'], 'pivot': (8.0, -16.4, 1.0)},
+            {'name': 'Foot Left Ref', 'parent': B['FootL'], 'pivot': (9.0, 16.4, 1.0)},
+            {'name': 'Foot Right Ref', 'parent': B['FootR'], 'pivot': (9.0, -16.4, 1.0)},
         ],
         'collision': [
-            {'name': 'Collision Sphere01', 'parent': B['Root'], 'pivot': (0.0, 0.0, 52.0),
-             'center': (0.0, 0.0, 52.0), 'radius': 48.0},
+            {'name': 'Collision Sphere01', 'parent': B['Root'], 'pivot': (0.0, 0.0, 56.0),
+             'center': (0.0, 0.0, 56.0), 'radius': 52.0},
         ],
         'cameras': [
-            {'name': 'Portrait', 'position': (84.0, -28.0, 96.0), 'target': (6.0, 0.0, 84.0),
+            {'name': 'Portrait', 'position': (90.0, -30.0, 104.0), 'target': (6.0, 0.0, 91.0),
              'fov': 0.6, 'far': 1000.0, 'near': 8.0},
         ],
     }
