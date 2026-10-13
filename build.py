@@ -27,7 +27,8 @@ LOADING_TEXT = ('Pick a hero and lead your town hall, peasants and army.\n'
                 'and finish side quests from the quest log (F9).\n'
                 'Every few minutes the Scourge raids the castle, your bases or your outposts. '
                 'Slay Kel\'Thuzad and raze the Black Citadel to win; lose Brightwater Castle and all is lost.\n'
-                'Dark Iron Thane model based on "King" by Tranquil (hiveworkshop.com).')
+                'Dark Iron Thane model based on "King" by Tranquil, Dark Iron Brawler model '
+                '"RPGDwarf" by Tenebrae, recoloured (both hiveworkshop.com).')
 
 FLAGS = (F.W3I_MASKED_PARTIALLY_VISIBLE | F.W3I_FIXED_PLAYER_SETTINGS | F.W3I_CUSTOM_FORCES
          | F.W3I_PROPERTIES_OPENED | F.W3I_WAVES_CLIFF | F.W3I_WAVES_ROLLING

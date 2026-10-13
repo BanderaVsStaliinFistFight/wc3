@@ -9,6 +9,7 @@ repository). Point these environment variables at them to enable:
     PJASS           path to a pjass binary (https://github.com/lep/pjass)
 """
 
+import importlib.util
 import os
 import re
 import struct
@@ -23,7 +24,7 @@ sys.path.insert(0, os.path.join(ROOT, 'tools'))
 
 import build  # noqa: E402
 from mapgen import layout as L  # noqa: E402
-from mapgen import dwarf, hero, mdxedit, objects  # noqa: E402
+from mapgen import brawler, dwarf, hero, image, jpeg, mdxedit, objects  # noqa: E402
 from mapgen.mpq import MpqReader, MpqWriter  # noqa: E402
 
 MAP_FILES = ['war3map.w3i', 'war3map.w3e', 'war3map.wpm', 'war3map.shd', 'war3map.doo',
@@ -204,16 +205,21 @@ class BuiltMap(unittest.TestCase):
         self.assertIn('InitTrig_Init', custom)
 
 
-    def test_custom_hero(self):
+    def test_custom_heroes(self):
         units = objects.read(self.mpq.read('war3map.w3u'), levels=False)
         abilities = objects.read(self.mpq.read('war3map.w3a'), levels=True)
-        base, mods = units[hero.HERO_ID]
-        self.assertEqual(base, 'Hmkg')
-        self.assertEqual(mods[('unam', 0)], hero.HERO_NAME)
-        self.assertEqual(mods[('umdl', 0)], dwarf.MODEL_PATH)
-        for ability in mods[('uhab', 0)].split(','):
-            self.assertIn(ability, abilities)
-            self.assertIn(('anam', 0), abilities[ability][1])
+        script = self.mpq.read('war3map.j').decode('utf-8')
+        for hero_id, name, module in ((hero.THANE_ID, hero.THANE_NAME, dwarf),
+                                      (hero.BRAWLER_ID, hero.BRAWLER_NAME, brawler)):
+            base, mods = units[hero_id]
+            self.assertEqual(base, 'Hmkg')
+            self.assertEqual(mods[('unam', 0)], name)
+            self.assertEqual(mods[('umdl', 0)], module.MODEL_PATH)
+            self.assertEqual(mods[('uico', 0)], module.ICON_PATH)
+            self.assertIn("'%s'" % hero_id, script)
+            for ability in mods[('uhab', 0)].split(','):
+                self.assertIn(ability, abilities)
+                self.assertIn(('anam', 0), abilities[ability][1])
         # every imported file is in the archive and listed in war3map.imp
         imp = self.mpq.read('war3map.imp')
         version, count = struct.unpack_from('<ii', imp, 0)
@@ -223,20 +229,156 @@ class BuiltMap(unittest.TestCase):
             self.assertEqual(path[0], chr(objects.IMPORT_CUSTOM_PATH))
             self.assertTrue(self.mpq.has(path[1:]), path)
         self.assertEqual(sorted(p[1:] for p in listed),
-                         sorted([dwarf.MODEL_PATH, dwarf.PORTRAIT_PATH, dwarf.TEXTURE_PATH]))
-        self.assertEqual(mods[('uico', 0)], dwarf.ICON_PATH)
-        script = self.mpq.read('war3map.j').decode('utf-8')
-        self.assertIn("'%s'" % hero.HERO_ID, script)
+                         sorted([dwarf.MODEL_PATH, dwarf.PORTRAIT_PATH, dwarf.TEXTURE_PATH,
+                                 brawler.MODEL_PATH, brawler.PORTRAIT_PATH, brawler.TEXTURE_PATH,
+                                 brawler.ICON_PATH, brawler.DISABLED_ICON_PATH]))
 
-    def test_hero_model(self):
-        for path in (dwarf.MODEL_PATH, dwarf.PORTRAIT_PATH):
+    def test_hero_models(self):
+        for path in (dwarf.MODEL_PATH, dwarf.PORTRAIT_PATH, brawler.MODEL_PATH, brawler.PORTRAIT_PATH):
             mdx = self.mpq.read(path)
             self.assertEqual(mdx[:4], b'MDLX')
             self.assertEqual(struct.unpack_from('<4sII', mdx, 4), (b'VERS', 4, 800))
             mdxedit.Model(mdx)
-        tex = self.mpq.read(dwarf.TEXTURE_PATH)
-        self.assertEqual(tex[:4], b'BLP1')
-        self.assertEqual(struct.unpack_from('<ii', tex, 12), (dwarf.TEX, dwarf.TEX))
+        for path, size in ((dwarf.TEXTURE_PATH, dwarf.TEX), (brawler.TEXTURE_PATH, 256), (brawler.ICON_PATH, 64),
+                           (brawler.DISABLED_ICON_PATH, 64)):
+            tex = self.mpq.read(path)
+            self.assertEqual(tex[:4], b'BLP1')
+            self.assertEqual(struct.unpack_from('<ii', tex, 12), (size, size))
+
+
+def check_well_formed(test, model, texture_path):
+    data = model.write()
+    again = mdxedit.Model(data)
+    test.assertEqual(again.write(), data)
+    ids = {e.node.object_id for _, e in model.all_nodes()}
+    test.assertEqual(sorted(ids), list(range(len(model.pivots))))
+    for g in model.geosets:
+        n = len(g.vertices)
+        test.assertGreater(n, 0)
+        test.assertTrue(n == len(g.normals) == len(g.uvs) == len(g.vertex_groups))
+        test.assertTrue(all(0 <= i < n for f in g.faces for i in f))
+        test.assertTrue(all(0 <= k < len(g.groups) for k in g.vertex_groups))
+        test.assertTrue(all(b in ids for grp in g.groups for b in grp))
+        test.assertLess(g.material, len(model.materials))
+    for a in model.geoset_animations:
+        test.assertLess(a.geoset, len(model.geosets))
+    test.assertIn(texture_path, [t.path for t in model.textures])
+
+
+class HeroData(unittest.TestCase):
+    def test_hotkeys_match_tooltips(self):
+        """The letter a tooltip highlights is the ability's real hotkey, and no
+        hero has two abilities on one key or one on a command key."""
+        for _, hero_id, unit_mods in hero.UNITS:
+            uhab = [m[-1] for m in unit_mods if m[0] == 'uhab'][0].split(',')
+            keys = []
+            for base, new, mods in hero.ABILITIES:
+                if new not in uhab:
+                    continue
+                fields = {m[0]: m[-1] for m in mods}
+                tip = fields['atp1']
+                letter = re.search(r'\|cffffcc00(.)\|r', tip).group(1)
+                self.assertEqual(letter.upper(), fields['ahky'], new)
+                self.assertEqual(fields['arhk'], fields['ahky'], new)
+                self.assertIn(fields['anam'], re.sub(r'\|c[0-9a-f]{8}|\|r', '', tip), new)
+                keys.append(fields['ahky'])
+            self.assertEqual(len(keys), 4, hero_id)
+            self.assertEqual(len(set(keys)), 4, hero_id)
+            self.assertFalse(set(keys) & set('MSHAPO'), hero_id)
+
+
+class Jpeg(unittest.TestCase):
+    def test_decodes_blp_texture(self):
+        pixels, w, h = image.read_blp(brawler.read_reference('texture'))
+        self.assertEqual((w, h, len(pixels)), (256, 256, 256 * 256))
+        # a pale cheek, the blue iris, and the transparent texels the body's edges use
+        cheek = pixels[85 * w + 150]
+        self.assertTrue(all(abs(a - b) <= 2 for a, b in zip(cheek, (226, 196, 177, 255))), cheek)
+        iris = pixels[71 * w + 159]
+        self.assertGreater(iris[2], iris[0] + 15)
+        self.assertIn(0, {p[3] for p in pixels})
+
+    @unittest.skipUnless(importlib.util.find_spec('PIL'), 'Pillow not installed')
+    def test_matches_libjpeg(self):
+        import io
+        from PIL import Image
+        data = brawler.read_reference('icon')
+        offset, size = struct.unpack_from('<I', data, 28)[0], struct.unpack_from('<I', data, 92)[0]
+        header = struct.unpack_from('<I', data, 156)[0]
+        stream = data[160:160 + header] + data[offset:offset + size]
+        w, h, planes = jpeg.decode(stream)
+        ref = Image.open(io.BytesIO(stream)).tobytes()               # Pillow reads it as inverted CMYK
+        worst = max(abs(255 - ref[4 * i + c] - planes[c][i]) for i in range(w * h) for c in range(4))
+        self.assertLessEqual(worst, 1)
+
+
+class BrawlerModel(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.files = brawler.build()
+        cls.model = mdxedit.Model(cls.files[brawler.MODEL_PATH])
+        cls.portrait = mdxedit.Model(cls.files[brawler.PORTRAIT_PATH])
+        cls.texture, cls.w, cls.h = image.read_blp(cls.files[brawler.TEXTURE_PATH])
+        cls.original, _, _ = image.read_blp(brawler.read_reference('texture'))
+
+    def test_reference_models_round_trip(self):
+        for member in ('model', 'portrait'):
+            data = brawler.read_reference(member)
+            self.assertEqual(mdxedit.Model(data).write(), data)
+
+    def test_well_formed(self):
+        for model in (self.model, self.portrait):
+            check_well_formed(self, model, brawler.TEXTURE_PATH)
+            self.assertNotIn(brawler.SOURCE_TEXTURE, [t.path for t in model.textures])
+
+    def test_only_colours_change(self):
+        """Tenebrae's mesh and animations are kept as they are; the only new
+        geometry is one glow over each eye."""
+        for member, model in (('model', self.model), ('portrait', self.portrait)):
+            original = mdxedit.Model(brawler.read_reference(member))
+            self.assertEqual(len(model.geosets), len(original.geosets) + 1)
+            for a, b in zip(model.geosets, original.geosets):
+                self.assertEqual((a.vertices, a.faces, a.uvs), (b.vertices, b.faces, b.uvs))
+            self.assertEqual([s.write() for s in model.sequences], [s.write() for s in original.sequences])
+            glow = model.geosets[-1]
+            self.assertEqual(len(glow.faces), 4)
+            ys = sorted(v[1] for v in glow.vertices)
+            self.assertAlmostEqual(ys[0] + ys[-1], 2 * sum(ys) / len(ys), delta=1.0)    # one each side
+            layers = mdxedit.layer_textures(model.materials[glow.material])
+            self.assertEqual(model.textures[layers[0]].path, brawler.TEXTURE_PATH)
+
+    def test_recoloured(self):
+        w = self.w
+        cheek, beard = self.texture[85 * w + 150], self.texture[140 * w + 140]
+        self.assertLess(max(cheek[:3]), 140)                    # dark slate skin
+        self.assertGreater(cheek[2], cheek[0])
+        self.assertLess(max(beard[:3]), 50)                     # near black beard
+        for x, y in ((158, 71), (154, 69), (162, 73)):          # pupil, white, iris: all glowing red
+            eye = self.texture[y * w + x]
+            self.assertGreater(eye[0], 200, (x, y))
+            self.assertGreater(eye[0], max(eye[1], eye[2]) + 80, (x, y))
+        # alpha is untouched (but for the glow sprite) and Tenebrae's signature (no triangle uses it) keeps
+        # its colours
+        gx, gy, size = brawler.GLOW
+        sprite = {(gy + y) * w + gx + x for y in range(size) for x in range(size)}
+        self.assertEqual([p[3] for i, p in enumerate(self.texture) if i not in sprite],
+                         [p[3] for i, p in enumerate(self.original) if i not in sprite])
+        signature = [i for i, p in enumerate(self.original) if p[2] > p[0] + 40 and p[1] > p[0] + 40]
+        self.assertGreater(len(signature), 100)
+        changed = sum(1 for i in signature if max(abs(a - b) for a, b in zip(self.texture[i], self.original[i])) > 24)
+        self.assertLess(changed, len(signature) // 20)
+
+    def test_icons(self):
+        icon, w, h = image.read_blp(self.files[brawler.ICON_PATH])
+        disabled, _, _ = image.read_blp(self.files[brawler.DISABLED_ICON_PATH])
+        original, _, _ = image.read_blp(brawler.read_reference('icon'))
+        for ex, ey in brawler.ICON_EYES:
+            eye = icon[int(ey) * w + int(ex)]
+            self.assertGreater(eye[0], 200)
+            self.assertGreater(eye[0], max(eye[1], eye[2]) + 80)
+        frame = [i for i in range(w * h) if min(i % w, i // w, w - 1 - i % w, h - 1 - i // w) < 4]
+        self.assertTrue(all(max(abs(a - b) for a, b in zip(icon[i], original[i])) <= 24 for i in frame))
+        self.assertTrue(all(p[0] == p[1] == p[2] for p in disabled))
 
 
 class HeroModel(unittest.TestCase):
@@ -251,22 +393,7 @@ class HeroModel(unittest.TestCase):
 
     def test_well_formed(self):
         for model in (self.model, self.portrait):
-            data = model.write()
-            again = mdxedit.Model(data)
-            self.assertEqual(again.write(), data)
-            ids = {e.node.object_id for _, e in model.all_nodes()}
-            self.assertEqual(sorted(ids), list(range(len(model.pivots))))
-            for g in model.geosets:
-                n = len(g.vertices)
-                self.assertGreater(n, 0)
-                self.assertTrue(n == len(g.normals) == len(g.uvs) == len(g.vertex_groups))
-                self.assertTrue(all(0 <= i < n for f in g.faces for i in f))
-                self.assertTrue(all(0 <= k < len(g.groups) for k in g.vertex_groups))
-                self.assertTrue(all(b in ids for grp in g.groups for b in grp))
-                self.assertLess(g.material, len(model.materials))
-            for a in model.geoset_animations:
-                self.assertLess(a.geoset, len(model.geosets))
-            self.assertIn(dwarf.TEXTURE_PATH, [t.path for t in model.textures])
+            check_well_formed(self, model, dwarf.TEXTURE_PATH)
 
     def test_dwarf_changes(self):
         king = mdxedit.Model(dwarf.read_reference('King/King.mdx'))

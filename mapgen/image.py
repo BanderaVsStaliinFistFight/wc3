@@ -6,6 +6,8 @@ Pixels are lists of (r, g, b) or (r, g, b, a) tuples, rows from the top.
 import struct
 import zlib
 
+from . import jpeg
+
 
 def downsample(pixels, w, h):
     w2, h2 = max(1, w // 2), max(1, h // 2)
@@ -142,6 +144,33 @@ def blp1(pixels, w, h, mipmaps=True):
     for b in blobs:
         out += b
     return bytes(out)
+
+
+def read_blp(data):
+    """The full-size image of a BLP1 texture, JPEG or paletted, as
+    (pixels, width, height) with (r, g, b, a) pixels."""
+    if data[:4] != b'BLP1':
+        raise ValueError('not a BLP1 texture')
+    compression, alpha_bits, w, h = struct.unpack('<4I', data[4:20])
+    offset, size = struct.unpack('<I', data[28:32])[0], struct.unpack('<I', data[92:96])[0]
+    if compression == 0:
+        header_size = struct.unpack('<I', data[156:160])[0]
+        jw, jh, planes = jpeg.decode(data[160:160 + header_size] + data[offset:offset + size])
+        if (jw, jh) != (w, h):
+            raise ValueError('JPEG size does not match the BLP header')
+        b, g, r = planes[:3]
+        a = planes[3] if len(planes) > 3 and alpha_bits else [255] * (w * h)
+        return list(zip(r, g, b, a)), w, h
+    palette = [(data[156 + 4 * k + 2], data[156 + 4 * k + 1], data[156 + 4 * k]) for k in range(256)]
+    blob = data[offset:offset + size]
+    n = w * h
+    if alpha_bits == 8:
+        alpha = blob[n:2 * n]
+    elif alpha_bits == 1:
+        alpha = [255 if blob[n + i // 8] >> (i % 8) & 1 else 0 for i in range(n)]
+    else:
+        alpha = [255] * n
+    return [palette[blob[i]] + (alpha[i],) for i in range(n)], w, h
 
 
 def png(pixels, width, height):

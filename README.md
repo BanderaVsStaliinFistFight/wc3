@@ -14,9 +14,9 @@ The Lich Kel'Thuzad has raised a Black Citadel in the blighted north. Brightwate
 of the vale, needs heroes and commanders.
 
 **RPG**
-- Pick one of ten heroes when the game starts (the map's own Dark Iron Thane, or one of the nine
-  classic heroes), or choose *Random* for +150 gold. If you don't pick within 45 seconds, you get a
-  random hero.
+- Pick one of eleven heroes when the game starts (the map's own Dark Iron Thane and Dark Iron
+  Brawler, or one of the nine classic heroes), or choose *Random* for +150 gold. If you don't pick
+  within 45 seconds, you get a random hero.
 - Level up on 25 creep camps that get tougher the further north you go. Camps drop random items, and all but
   the outpost guards respawn about 3½ minutes after they are cleared. Heroes at level 5 and above still earn experience
   from creeps (normally they stop at level 5).
@@ -54,16 +54,21 @@ of the vale, needs heroes and commanders.
 **Win:** slay Kel'Thuzad *and* destroy the Black Citadel. **Lose:** Brightwater Castle falls.
 Type `-help` in game for a summary.
 
-## The Dark Iron Thane
+## The Dark Iron heroes
+
+The map comes with two heroes of its own, both Dark Iron dwarves. Both are built on the Mountain
+King, so they keep his voice, attack and armour, and their abilities are stock ones with new names
+and icons, so their balance is the game's own.
+
+### The Dark Iron Thane
 
 ![The Dark Iron Thane: front, side, back, attacking, and his portrait](docs/dark_iron_thane.png)
 
 *The preview shows the game's own skins as flat grey: they live in your Warcraft III install, not
 in this repository, so only the shapes, the tints and the pieces with their own texture show here.*
 
-The map comes with its own hero, a Dark Iron dwarf. His model is assembled at build time from
-**"King" by Tranquil** (Hive Workshop, `King.zip` in this repository), the way custom WC3 models
-are usually made:
+His model is assembled at build time from **"King" by Tranquil** (Hive Workshop, `King.zip` in this
+repository), the way custom WC3 models are usually made:
 - The King's body, armoured arms, pauldrons, cape, bearded head, skeleton and 14 animations,
   textured with the game's own skins (Arthas, Uther, the Captain and others).
 - Dwarf proportions: the legs and cape shortened, the body widened. The arms, torso and weapon
@@ -79,10 +84,31 @@ The other reference models in this repository (*Royal Captain* by Tranquil, *Pla
 *Human Archer* by HappyTauren, *Bloodelf Mage* by General Frank) were used for comparison only.
 
 He uses the Mountain King's icon, stats and abilities, renamed for the Dark Iron clan:
-- *Molten Hammer* (Storm Bolt)
-- *Fire Stomp* (Thunder Clap)
-- *Searing Blows* (Bash)
-- *Avatar of Flame* (Avatar)
+- *Molten Hammer* (Storm Bolt, hotkey T)
+- *Fire Stomp* (Thunder Clap, F)
+- *Searing Blows* (Bash, B)
+- *Avatar of Flame* (Avatar, V)
+
+### The Dark Iron Brawler
+
+![The Dark Iron Brawler: front, side, back, spinning, his portrait and his icon](docs/dark_iron_brawler.png)
+
+His model is **"RPGDwarf" by Tenebrae** (Hive Workshop, `RPGDwarf.zip` in this repository):
+Tenebrae's mesh, animations, portrait and hand-painted texture, recoloured at build time:
+- the skin dark slate and the ginger beard and hair near black
+- the eyes red, with a small additive glow over each so they burn in the dark
+- the steel dark iron, the gold brass, the leather oxblood and the cap crimson
+- the icon recoloured the same way, with a greyed-out copy for when he is dead
+
+Texels that no triangle uses keep their colours, Tenebrae's signature among them. The *RPG Dwarf*
+model by Juliano (`RPG Dwarf.zip`) was not used.
+
+He fights with his fists. A little quicker than the Mountain King (more agility, a little less
+strength and intelligence), with:
+- *Dark Iron Ale* (Drunken Haze, hotkey D): a keg that slows enemies and makes them miss
+- *Ground Slam* (War Stomp, G)
+- *Burning Knuckles* (Incinerate, K): flames that grow with every punch
+- *Iron Cyclone* (Bladestorm, C): the model has its own spin animation for it
 
 ## Building the map
 
@@ -101,9 +127,11 @@ python3 build.py --preview  # also renders docs/overview.png
 | `mapgen/script.py` | Adds the layout data and the `config`/`main` functions to the script |
 | `mapgen/formats.py` | Writes the map's binary files (`w3i`, `w3e`, `wpm`, `doo`, …) and the BLP minimap |
 | `mapgen/dwarf.py` | The Dark Iron Thane's model and portrait, assembled from `King.zip` |
+| `mapgen/brawler.py` | The Dark Iron Brawler: `RPGDwarf.zip` recoloured, plus his icons |
 | `mapgen/mdxedit.py` | Reads, edits and writes MDX models |
-| `mapgen/lowpoly.py`, `mapgen/image.py` | Modelling helpers for the added pieces; BLP and PNG writers |
-| `mapgen/hero.py`, `mapgen/objects.py` | The hero's unit and ability data (`w3u`, `w3a`) and the import list (`imp`) |
+| `mapgen/lowpoly.py` | Modelling helpers for the Thane's added pieces |
+| `mapgen/image.py`, `mapgen/jpeg.py` | BLP reader and writer, PNG writer; a JPEG decoder for Blizzard's JPEG BLPs |
+| `mapgen/hero.py`, `mapgen/objects.py` | The heroes' unit and ability data (`w3u`, `w3a`) and the import list (`imp`) |
 | `mapgen/mpq.py` | MPQ archive writer and reader |
 | `tools/jass_sim.py` | A JASS interpreter with a mock game world, used to test the script |
 
@@ -122,8 +150,9 @@ Tested without the game client:
   - Each binary file's layout was compared against maps saved by Blizzard's World Editor.
 - **Independent parser:** the built `.w3x` (MPQ, `w3i`, `w3e`, `doo`, `wpm`, `mmp`, `wct`, `w3u`,
   `w3a`, `imp`, BLP, MDX) reads back cleanly in an independent parser (mdx-m3-viewer).
-- **Hero model:** the MDX editor reads and writes every reference model back byte for byte. The
-  finished model and portrait were rendered in mdx-m3-viewer's WebGL renderer in every animation.
+- **Hero models:** the MDX editor reads and writes every reference model back byte for byte. The
+  finished models and portraits were rendered in mdx-m3-viewer's WebGL renderer. The JPEG decoder
+  matches libjpeg (through Pillow) to within one level per channel on Tenebrae's texture and icon.
 - **Syntax:** the script passes [pjass](https://github.com/lep/pjass) against both the 1.27 and the
   current `common.j`/`Blizzard.j`.
 - **Simulated playthroughs:** `tools/jass_sim.py` runs Blizzard's real `Blizzard.j` plus the map

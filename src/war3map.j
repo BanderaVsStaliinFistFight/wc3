@@ -127,7 +127,7 @@ globals
     string array     raidTargetName
 
     // Heroes ----------------------------------------------------------------
-    constant integer HERO_CHOICES          = 10
+    constant integer HERO_CHOICES          = 11
     integer array    heroType
     string array     heroLabel
     dialog           heroDialog            = null
@@ -1036,27 +1036,29 @@ function OnHeroButton takes nothing returns nothing
 endfunction
 
 function InitHeroChoices takes nothing returns nothing
-    // 'H000' is the map's own hero: see mapgen/hero.py and mapgen/dwarf.py
+    // 'H000' and 'H001' are the map's own heroes: see mapgen/hero.py, mapgen/dwarf.py and mapgen/brawler.py
     set heroType[0] = 'H000'
     set heroLabel[0] = "Dark Iron Thane"
-    set heroType[1] = 'Hpal'
-    set heroLabel[1] = "Paladin"
-    set heroType[2] = 'Hamg'
-    set heroLabel[2] = "Archmage"
-    set heroType[3] = 'Hmkg'
-    set heroLabel[3] = "Mountain King"
-    set heroType[4] = 'Obla'
-    set heroLabel[4] = "Blademaster"
-    set heroType[5] = 'Ofar'
-    set heroLabel[5] = "Far Seer"
-    set heroType[6] = 'Otch'
-    set heroLabel[6] = "Tauren Chieftain"
-    set heroType[7] = 'Edem'
-    set heroLabel[7] = "Demon Hunter"
-    set heroType[8] = 'Emoo'
-    set heroLabel[8] = "Priestess of the Moon"
-    set heroType[9] = 'Npbm'
-    set heroLabel[9] = "Pandaren Brewmaster"
+    set heroType[1] = 'H001'
+    set heroLabel[1] = "Dark Iron Brawler"
+    set heroType[2] = 'Hpal'
+    set heroLabel[2] = "Paladin"
+    set heroType[3] = 'Hamg'
+    set heroLabel[3] = "Archmage"
+    set heroType[4] = 'Hmkg'
+    set heroLabel[4] = "Mountain King"
+    set heroType[5] = 'Obla'
+    set heroLabel[5] = "Blademaster"
+    set heroType[6] = 'Ofar'
+    set heroLabel[6] = "Far Seer"
+    set heroType[7] = 'Otch'
+    set heroLabel[7] = "Tauren Chieftain"
+    set heroType[8] = 'Edem'
+    set heroLabel[8] = "Demon Hunter"
+    set heroType[9] = 'Emoo'
+    set heroLabel[9] = "Priestess of the Moon"
+    set heroType[10] = 'Npbm'
+    set heroLabel[10] = "Pandaren Brewmaster"
 endfunction
 
 // Dialogs (and their buttons) do not work if they are created during map
